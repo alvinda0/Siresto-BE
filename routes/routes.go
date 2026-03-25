@@ -24,6 +24,10 @@ func SetupRoutes(r *gin.Engine) {
 	branchService := service.NewBranchService(branchRepo, companyRepo)
 	branchHandler := handler.NewBranchHandler(branchService)
 
+	roleRepo := repository.NewRoleRepository(config.DB)
+	roleService := service.NewRoleService(roleRepo)
+	roleHandler := handler.NewRoleHandler(roleService)
+
 	// API v1
 	v1 := r.Group("/api/v1")
 
@@ -39,6 +43,13 @@ func SetupRoutes(r *gin.Engine) {
 	auth.Use(middleware.AuthMiddleware())
 	{
 		auth.GET("/me", userHandler.GetMe)
+	}
+
+	// Role routes (protected)
+	roles := v1.Group("/roles")
+	roles.Use(middleware.AuthMiddleware())
+	{
+		roles.GET("", roleHandler.GetAllRoles)
 	}
 
 	// ===== EXTERNAL API (untuk client restoran) =====

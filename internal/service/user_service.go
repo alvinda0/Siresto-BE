@@ -19,10 +19,10 @@ type UserService interface {
 	DeleteUser(id uuid.UUID) error
 	CreateExternalUser(name, email, password string, roleID uuid.UUID, companyID, branchID *uuid.UUID) (*entity.User, error)
 	CreateInternalUser(name, email, password string, roleID uuid.UUID) (*entity.User, error)
-	GetUsersByCompany(companyID uuid.UUID) ([]entity.User, error)
-	GetUsersByBranch(branchID uuid.UUID) ([]entity.User, error)
-	GetInternalUsers() ([]entity.User, error)
-	GetExternalUsers() ([]entity.User, error)
+	GetUsersByCompany(companyID uuid.UUID, limit, offset int) ([]entity.User, int64, error)
+	GetUsersByBranch(branchID uuid.UUID, limit, offset int) ([]entity.User, int64, error)
+	GetInternalUsers(limit, offset int) ([]entity.User, int64, error)
+	GetExternalUsers(limit, offset int) ([]entity.User, int64, error)
 }
 
 type userService struct {
@@ -210,21 +210,21 @@ func (s *userService) CreateInternalUser(name, email, password string, roleID uu
 }
 
 // GetUsersByCompany untuk mendapatkan semua user dalam perusahaan
-func (s *userService) GetUsersByCompany(companyID uuid.UUID) ([]entity.User, error) {
-	return s.repo.FindByCompanyID(companyID)
+func (s *userService) GetUsersByCompany(companyID uuid.UUID, limit, offset int) ([]entity.User, int64, error) {
+	return s.repo.FindByCompanyID(companyID, limit, offset)
 }
 
 // GetUsersByBranch untuk mendapatkan semua user dalam cabang
-func (s *userService) GetUsersByBranch(branchID uuid.UUID) ([]entity.User, error) {
-	return s.repo.FindByBranchID(branchID)
+func (s *userService) GetUsersByBranch(branchID uuid.UUID, limit, offset int) ([]entity.User, int64, error) {
+	return s.repo.FindByBranchID(branchID, limit, offset)
 }
 
 // GetInternalUsers untuk mendapatkan semua internal user platform
-func (s *userService) GetInternalUsers() ([]entity.User, error) {
-	return s.repo.FindInternalUsers()
+func (s *userService) GetInternalUsers(limit, offset int) ([]entity.User, int64, error) {
+	return s.repo.FindInternalUsers(limit, offset)
 }
 
 // GetExternalUsers untuk mendapatkan semua external user (client restoran)
-func (s *userService) GetExternalUsers() ([]entity.User, error) {
-	return s.repo.FindExternalUsers()
+func (s *userService) GetExternalUsers(limit, offset int) ([]entity.User, int64, error) {
+	return s.repo.FindExternalUsers(limit, offset)
 }

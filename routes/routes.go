@@ -34,9 +34,17 @@ func SetupRoutes(r *gin.Engine) {
 		public.POST("/login", userHandler.Login)
 	}
 
+	// Auth routes (protected)
+	auth := v1.Group("/auth")
+	auth.Use(middleware.AuthMiddleware())
+	{
+		auth.GET("/me", userHandler.GetMe)
+	}
+
 	// ===== EXTERNAL API (untuk client restoran) =====
 	external := v1.Group("/external")
 	external.Use(middleware.AuthMiddleware())
+	external.Use(middleware.RequireExternalRole()) // Hanya external users
 	{
 		// User management
 		external.POST("/users", userHandler.CreateExternalUser)
@@ -58,6 +66,7 @@ func SetupRoutes(r *gin.Engine) {
 	// ===== INTERNAL API (untuk platform SIRESTO) =====
 	internal := v1.Group("/internal")
 	internal.Use(middleware.AuthMiddleware())
+	internal.Use(middleware.RequireInternalRole()) // Hanya internal users
 	{
 		// User management
 		internal.POST("/users", userHandler.CreateInternalUser)

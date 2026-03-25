@@ -72,8 +72,16 @@ func (h *UserHandler) Login(c *gin.Context) {
 		return
 	}
 	
+	// Tentukan internal atau external role berdasarkan role type
+	var internalRole, externalRole string
+	if user.Role.Type == "INTERNAL" {
+		internalRole = user.Role.Name
+	} else if user.Role.Type == "EXTERNAL" {
+		externalRole = user.Role.Name
+	}
+	
 	// Generate JWT token
-	token, err := pkg.GenerateJWT(user.ID, user.Email, user.RoleID.String(), "", user.CompanyID, user.BranchID)
+	token, err := pkg.GenerateJWT(user.ID, user.Email, internalRole, externalRole, user.CompanyID, user.BranchID)
 	if err != nil {
 		pkg.ErrorResponse(c, 500, "Failed to generate token", err.Error())
 		return
@@ -82,6 +90,23 @@ func (h *UserHandler) Login(c *gin.Context) {
 	pkg.SuccessResponse(c, 200, "Login successful", gin.H{
 		"token": token,
 	})
+}
+
+// GetMe untuk mendapatkan informasi user yang sedang login
+func (h *UserHandler) GetMe(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		pkg.ErrorResponse(c, 401, "Unauthorized", "User ID not found in token")
+		return
+	}
+
+	user, err := h.service.GetUserByID(userID.(uuid.UUID))
+	if err != nil {
+		pkg.ErrorResponse(c, 404, "User not found", err.Error())
+		return
+	}
+
+	pkg.SuccessResponse(c, 200, "User profile retrieved successfully", user)
 }
 
 func (h *UserHandler) GetUser(c *gin.Context) {
@@ -152,13 +177,15 @@ func (h *UserHandler) GetCompanyUsers(c *gin.Context) {
 		return
 	}
 
-	users, err := h.service.GetUsersByCompany(companyID)
+	pagination := pkg.GetPaginationParams(c)
+	users, total, err := h.service.GetUsersByCompany(companyID, pagination.Limit, pagination.CalculateOffset())
 	if err != nil {
 		pkg.ErrorResponse(c, 500, "Failed to retrieve users", err.Error())
 		return
 	}
 
-	pkg.SuccessResponse(c, 200, "Users retrieved successfully", users)
+	meta := pagination.CreateMeta(total)
+	pkg.SuccessResponseWithMeta(c, 200, "Users retrieved successfully", users, meta)
 }
 
 // GetBranchUsers untuk mendapatkan semua user dalam cabang
@@ -169,24 +196,28 @@ func (h *UserHandler) GetBranchUsers(c *gin.Context) {
 		return
 	}
 
-	users, err := h.service.GetUsersByBranch(branchID)
+	pagination := pkg.GetPaginationParams(c)
+	users, total, err := h.service.GetUsersByBranch(branchID, pagination.Limit, pagination.CalculateOffset())
 	if err != nil {
 		pkg.ErrorResponse(c, 500, "Failed to retrieve users", err.Error())
 		return
 	}
 
-	pkg.SuccessResponse(c, 200, "Users retrieved successfully", users)
+	meta := pagination.CreateMeta(total)
+	pkg.SuccessResponseWithMeta(c, 200, "Users retrieved successfully", users, meta)
 }
 
 // GetExternalUsers untuk mendapatkan semua external user (client restoran)
 func (h *UserHandler) GetExternalUsers(c *gin.Context) {
-	users, err := h.service.GetExternalUsers()
+	pagination := pkg.GetPaginationParams(c)
+	users, total, err := h.service.GetExternalUsers(pagination.Limit, pagination.CalculateOffset())
 	if err != nil {
 		pkg.ErrorResponse(c, 500, "Failed to retrieve users", err.Error())
 		return
 	}
 
-	pkg.SuccessResponse(c, 200, "External users retrieved successfully", users)
+	meta := pagination.CreateMeta(total)
+	pkg.SuccessResponseWithMeta(c, 200, "External users retrieved successfully", users, meta)
 }
 
 // ===== INTERNAL USER ENDPOINTS (untuk platform SIRESTO) =====
@@ -223,11 +254,13 @@ func (h *UserHandler) CreateInternalUser(c *gin.Context) {
 
 // GetInternalUsers untuk mendapatkan semua internal user platform
 func (h *UserHandler) GetInternalUsers(c *gin.Context) {
-	users, err := h.service.GetInternalUsers()
+	pagination := pkg.GetPaginationParams(c)
+	users, total, err := h.service.GetInternalUsers(pagination.Limit, pagination.CalculateOffset())
 	if err != nil {
 		pkg.ErrorResponse(c, 500, "Failed to retrieve users", err.Error())
 		return
 	}
 
-	pkg.SuccessResponse(c, 200, "Internal users retrieved successfully", users)
+	meta := pagination.CreateMeta(total)
+	pkg.SuccessResponseWithMeta(c, 200, "Internal users retrieved successfully", users, meta)
 }

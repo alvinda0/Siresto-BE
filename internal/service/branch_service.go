@@ -57,8 +57,8 @@ func (s *BranchService) GetBranchByID(id uuid.UUID) (*entity.Branch, error) {
 	return s.branchRepo.FindByID(id)
 }
 
-func (s *BranchService) GetBranchesByCompany(companyID uuid.UUID) ([]entity.Branch, error) {
-	return s.branchRepo.FindByCompanyID(companyID)
+func (s *BranchService) GetBranchesByCompany(companyID uuid.UUID, limit, offset int) ([]entity.Branch, int64, error) {
+	return s.branchRepo.FindByCompanyID(companyID, limit, offset)
 }
 
 func (s *BranchService) UpdateBranch(id uuid.UUID, name, address, city, province, postalCode, phone string, isActive *bool) error {

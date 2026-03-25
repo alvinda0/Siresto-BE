@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"project-name/internal/service"
+	"project-name/pkg"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -73,11 +74,13 @@ func (h *BranchHandler) GetBranchesByCompany(c *gin.Context) {
 		return
 	}
 
-	branches, err := h.branchService.GetBranchesByCompany(companyID)
+	pagination := pkg.GetPaginationParams(c)
+	branches, total, err := h.branchService.GetBranchesByCompany(companyID, pagination.Limit, pagination.CalculateOffset())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": branches})
+	meta := pagination.CreateMeta(total)
+	pkg.SuccessResponseWithMeta(c, http.StatusOK, "Branches retrieved successfully", branches, meta)
 }

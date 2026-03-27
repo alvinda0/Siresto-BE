@@ -18,10 +18,10 @@ func SetupRoutes(r *gin.Engine) {
 	userHandler := handler.NewUserHandler(userService)
 
 	branchRepo := repository.NewBranchRepository(config.DB)
-	companyService := service.NewCompanyService(companyRepo)
+	companyService := service.NewCompanyService(companyRepo, userRepo)
 	companyHandler := handler.NewCompanyHandler(companyService)
 
-	branchService := service.NewBranchService(branchRepo, companyRepo)
+	branchService := service.NewBranchService(branchRepo, companyRepo, userRepo)
 	branchHandler := handler.NewBranchHandler(branchService)
 
 	roleRepo := repository.NewRoleRepository(config.DB)
@@ -74,20 +74,20 @@ func SetupRoutes(r *gin.Engine) {
 		external.GET("/branches/company/:company_id", branchHandler.GetBranchesByCompany)
 	}
 
-	// ===== INTERNAL API (untuk platform SIRESTO) =====
-	internal := v1.Group("/internal")
-	internal.Use(middleware.AuthMiddleware())
-	internal.Use(middleware.RequireInternalRole()) // Hanya internal users
+	// ===== DASHBOARD API (untuk platform SIRESTO) =====
+	dashboard := v1.Group("/dashboard")
+	dashboard.Use(middleware.AuthMiddleware())
+	dashboard.Use(middleware.RequireInternalRole()) // Hanya internal users
 	{
 		// User management
-		internal.POST("/users", userHandler.CreateInternalUser)
-		internal.GET("/users", userHandler.GetInternalUsers)
-		internal.GET("/users/:id", userHandler.GetUser)
+		dashboard.POST("/users", userHandler.CreateInternalUser)
+		dashboard.GET("/users", userHandler.GetInternalUsers)
+		dashboard.GET("/users/:id", userHandler.GetUser)
 		
 		// Lihat semua companies (untuk monitoring)
-		internal.GET("/companies", companyHandler.GetMyCompanies) // TODO: buat endpoint khusus untuk list all
+		dashboard.GET("/companies", companyHandler.GetMyCompanies) // TODO: buat endpoint khusus untuk list all
 		
 		// Lihat semua external users (client restoran)
-		internal.GET("/external-users", userHandler.GetExternalUsers)
+		dashboard.GET("/external-users", userHandler.GetExternalUsers)
 	}
 }

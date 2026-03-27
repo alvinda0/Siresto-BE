@@ -20,3 +20,7 @@ func (s *RoleService) GetAllRoles() ([]entity.Role, error) {
 func (s *RoleService) GetRolesByType(roleType string) ([]entity.Role, error) {
 	return s.roleRepo.FindByType(roleType)
 }
+
+func (s *RoleService) GetRolesExcluding(roleType string, excludeNames []string) ([]entity.Role, error) {
+	return s.roleRepo.FindByTypeExcluding(roleType, excludeNames)
+}

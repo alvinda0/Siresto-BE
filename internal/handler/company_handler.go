@@ -68,7 +68,7 @@ func (h *CompanyHandler) GetMyCompanies(c *gin.Context) {
 		return
 	}
 
-	companies, err := h.companyService.GetCompaniesByOwner(userID.(uuid.UUID))
+	companies, err := h.companyService.GetMyCompanies(userID.(uuid.UUID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

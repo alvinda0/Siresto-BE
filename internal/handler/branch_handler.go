@@ -74,8 +74,15 @@ func (h *BranchHandler) GetBranchesByCompany(c *gin.Context) {
 		return
 	}
 
+	// Get current user ID
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	pagination := pkg.GetPaginationParams(c)
-	branches, total, err := h.branchService.GetBranchesByCompany(companyID, pagination.Limit, pagination.CalculateOffset())
+	branches, total, err := h.branchService.GetBranchesByCompanyFiltered(companyID, userID.(uuid.UUID), pagination.Limit, pagination.CalculateOffset())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

@@ -177,8 +177,15 @@ func (h *UserHandler) GetCompanyUsers(c *gin.Context) {
 		return
 	}
 
+	// Get current user ID
+	userID, exists := c.Get("userID")
+	if !exists {
+		pkg.ErrorResponse(c, 401, "Unauthorized", "User ID not found")
+		return
+	}
+
 	pagination := pkg.GetPaginationParams(c)
-	users, total, err := h.service.GetUsersByCompany(companyID, pagination.Limit, pagination.CalculateOffset())
+	users, total, err := h.service.GetUsersByCompanyFiltered(companyID, userID.(uuid.UUID), pagination.Limit, pagination.CalculateOffset())
 	if err != nil {
 		pkg.ErrorResponse(c, 500, "Failed to retrieve users", err.Error())
 		return

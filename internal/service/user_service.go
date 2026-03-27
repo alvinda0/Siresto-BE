@@ -20,6 +20,7 @@ type UserService interface {
 	CreateExternalUser(name, email, password string, roleID uuid.UUID, companyID, branchID *uuid.UUID) (*entity.User, error)
 	CreateInternalUser(name, email, password string, roleID uuid.UUID) (*entity.User, error)
 	GetUsersByCompany(companyID uuid.UUID, limit, offset int) ([]entity.User, int64, error)
+	GetUsersByCompanyFiltered(companyID, currentUserID uuid.UUID, limit, offset int) ([]entity.User, int64, error)
 	GetUsersByBranch(branchID uuid.UUID, limit, offset int) ([]entity.User, int64, error)
 	GetInternalUsers(limit, offset int) ([]entity.User, int64, error)
 	GetExternalUsers(limit, offset int) ([]entity.User, int64, error)
@@ -212,6 +213,28 @@ func (s *userService) CreateInternalUser(name, email, password string, roleID uu
 // GetUsersByCompany untuk mendapatkan semua user dalam perusahaan
 func (s *userService) GetUsersByCompany(companyID uuid.UUID, limit, offset int) ([]entity.User, int64, error) {
 	return s.repo.FindByCompanyID(companyID, limit, offset)
+}
+
+// GetUsersByCompanyFiltered untuk mendapatkan user berdasarkan role yang login
+func (s *userService) GetUsersByCompanyFiltered(companyID, currentUserID uuid.UUID, limit, offset int) ([]entity.User, int64, error) {
+	// Get current user info
+	currentUser, err := s.repo.FindByID(currentUserID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Jika OWNER, tampilkan semua user di company
+	if currentUser.Role.Name == "OWNER" {
+		return s.repo.FindByCompanyID(companyID, limit, offset)
+	}
+
+	// Jika ADMIN, hanya tampilkan user di cabang yang dia urus
+	if currentUser.Role.Name == "ADMIN" && currentUser.BranchID != nil {
+		return s.repo.FindByBranchID(*currentUser.BranchID, limit, offset)
+	}
+
+	// Jika role lain (CASHIER, KITCHEN, WAITER), tidak boleh akses endpoint ini
+	return nil, 0, errors.New("unauthorized to view company users")
 }
 
 // GetUsersByBranch untuk mendapatkan semua user dalam cabang

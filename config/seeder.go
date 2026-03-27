@@ -121,6 +121,7 @@ func SeedDatabase() {
 		Password:  hashPassword("admin123"),
 		RoleID:    getRoleID("ADMIN"),
 		CompanyID: &company.ID,
+		BranchID:  &branch.ID,
 		IsActive:  true,
 	}
 	if err := DB.FirstOrCreate(&admin, entity.User{Email: "admin@restaurant.com"}).Error; err != nil {

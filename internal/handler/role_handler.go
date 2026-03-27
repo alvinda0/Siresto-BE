@@ -18,7 +18,9 @@ func NewRoleHandler(roleService *service.RoleService) *RoleHandler {
 
 // GetAllRoles untuk mendapatkan semua roles
 // Internal users: bisa lihat semua role
-// External users: hanya bisa lihat external role
+// External users: filter berdasarkan role mereka
+//   - OWNER: bisa lihat semua external role (OWNER, ADMIN, CASHIER, KITCHEN, WAITER)
+//   - ADMIN: hanya bisa lihat role di bawahnya (ADMIN, CASHIER, KITCHEN, WAITER)
 func (h *RoleHandler) GetAllRoles(c *gin.Context) {
 	internalRole, _ := c.Get("internalRole")
 	externalRole, _ := c.Get("externalRole")
@@ -30,8 +32,20 @@ func (h *RoleHandler) GetAllRoles(c *gin.Context) {
 	if internalRole != nil && internalRole != "" {
 		roles, err = h.roleService.GetAllRoles()
 	} else if externalRole != nil && externalRole != "" {
-		// Jika external user, hanya tampilkan external role
-		roles, err = h.roleService.GetRolesByType("EXTERNAL")
+		// Jika external user, filter berdasarkan role
+		externalRoleStr := externalRole.(string)
+		
+		if externalRoleStr == "OWNER" {
+			// OWNER bisa lihat semua external role
+			roles, err = h.roleService.GetRolesByType("EXTERNAL")
+		} else if externalRoleStr == "ADMIN" {
+			// ADMIN hanya bisa lihat role di bawahnya (tidak termasuk OWNER)
+			roles, err = h.roleService.GetRolesExcluding("EXTERNAL", []string{"OWNER"})
+		} else {
+			// Role lain (CASHIER, KITCHEN, WAITER) tidak boleh akses
+			pkg.ErrorResponse(c, 403, "Access denied", "You don't have permission to view roles")
+			return
+		}
 	} else {
 		pkg.ErrorResponse(c, 403, "Access denied", "Invalid user type")
 		return

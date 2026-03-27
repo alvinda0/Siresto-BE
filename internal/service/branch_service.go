@@ -11,12 +11,14 @@ import (
 type BranchService struct {
 	branchRepo  *repository.BranchRepository
 	companyRepo *repository.CompanyRepository
+	userRepo    repository.UserRepository
 }
 
-func NewBranchService(branchRepo *repository.BranchRepository, companyRepo *repository.CompanyRepository) *BranchService {
+func NewBranchService(branchRepo *repository.BranchRepository, companyRepo *repository.CompanyRepository, userRepo repository.UserRepository) *BranchService {
 	return &BranchService{
 		branchRepo:  branchRepo,
 		companyRepo: companyRepo,
+		userRepo:    userRepo,
 	}
 }
 
@@ -59,6 +61,37 @@ func (s *BranchService) GetBranchByID(id uuid.UUID) (*entity.Branch, error) {
 
 func (s *BranchService) GetBranchesByCompany(companyID uuid.UUID, limit, offset int) ([]entity.Branch, int64, error) {
 	return s.branchRepo.FindByCompanyID(companyID, limit, offset)
+}
+
+func (s *BranchService) GetBranchesByCompanyFiltered(companyID, currentUserID uuid.UUID, limit, offset int) ([]entity.Branch, int64, error) {
+	// Get current user info
+	currentUser, err := s.userRepo.FindByID(currentUserID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Jika OWNER, tampilkan semua cabang di company
+	if currentUser.Role.Name == "OWNER" {
+		return s.branchRepo.FindByCompanyID(companyID, limit, offset)
+	}
+
+	// Jika ADMIN atau role lain yang punya branch_id, hanya tampilkan cabang yang dia urus
+	if currentUser.BranchID != nil {
+		branch, err := s.branchRepo.FindByID(*currentUser.BranchID)
+		if err != nil {
+			return nil, 0, err
+		}
+		
+		// Pastikan branch tersebut memang milik company yang diminta
+		if branch.CompanyID != companyID {
+			return []entity.Branch{}, 0, nil
+		}
+		
+		return []entity.Branch{*branch}, 1, nil
+	}
+
+	// Jika tidak punya branch_id, return empty
+	return []entity.Branch{}, 0, nil
 }
 
 func (s *BranchService) UpdateBranch(id uuid.UUID, name, address, city, province, postalCode, phone string, isActive *bool) error {

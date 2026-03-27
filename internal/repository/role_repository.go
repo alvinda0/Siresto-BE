@@ -25,3 +25,9 @@ func (r *RoleRepository) FindByType(roleType string) ([]entity.Role, error) {
 	err := r.DB.Where("type = ? AND is_active = ?", roleType, true).Order("name").Find(&roles).Error
 	return roles, err
 }
+
+func (r *RoleRepository) FindByTypeExcluding(roleType string, excludeNames []string) ([]entity.Role, error) {
+	var roles []entity.Role
+	err := r.DB.Where("type = ? AND is_active = ? AND name NOT IN ?", roleType, true, excludeNames).Order("name").Find(&roles).Error
+	return roles, err
+}

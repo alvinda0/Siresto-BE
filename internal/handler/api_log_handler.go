@@ -45,10 +45,10 @@ func (h *APILogHandler) GetAllLogs(c *gin.Context) {
 	// If external user, filter by their company and branch
 	if roleType == "EXTERNAL" {
 		if cid, exists := c.Get("company_id"); exists {
-			companyID = cid.(string)
+			companyID = cid.(uuid.UUID).String()
 		}
 		if bid, exists := c.Get("branch_id"); exists {
-			branchID = bid.(string)
+			branchID = bid.(uuid.UUID).String()
 		}
 	}
 	// If internal user, companyID and branchID remain empty (see all logs)

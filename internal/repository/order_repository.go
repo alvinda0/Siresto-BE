@@ -3,6 +3,7 @@ package repository
 import (
 	"project-name/internal/entity"
 	"project-name/pkg"
+	"strings"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -14,7 +15,7 @@ type OrderRepository interface {
 	Update(order *entity.Order) error
 	Delete(id uuid.UUID) error
 	FindByID(id uuid.UUID) (*entity.Order, error)
-	FindAll(companyID, branchID *uuid.UUID, pagination pkg.PaginationParams) ([]entity.Order, int64, error)
+	FindAll(companyID, branchID *uuid.UUID, status, method, customer, orderID string, pagination pkg.PaginationParams) ([]entity.Order, int64, error)
 	DeleteOrderItems(orderID uuid.UUID) error
 }
 
@@ -57,7 +58,7 @@ func (r *orderRepository) FindByID(id uuid.UUID) (*entity.Order, error) {
 	return &order, nil
 }
 
-func (r *orderRepository) FindAll(companyID, branchID *uuid.UUID, pagination pkg.PaginationParams) ([]entity.Order, int64, error) {
+func (r *orderRepository) FindAll(companyID, branchID *uuid.UUID, status, method, customer, orderID string, pagination pkg.PaginationParams) ([]entity.Order, int64, error) {
 	var orders []entity.Order
 	var total int64
 
@@ -71,6 +72,26 @@ func (r *orderRepository) FindAll(companyID, branchID *uuid.UUID, pagination pkg
 	// Filter by branch
 	if branchID != nil {
 		query = query.Where("branch_id = ?", *branchID)
+	}
+
+	// Filter by status
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	// Filter by order method
+	if method != "" {
+		query = query.Where("order_method = ?", method)
+	}
+
+	// Search by customer name (case-insensitive, partial match)
+	if customer != "" {
+		query = query.Where("LOWER(customer_name) LIKE ?", "%"+strings.ToLower(customer)+"%")
+	}
+
+	// Search by order ID (partial match)
+	if orderID != "" {
+		query = query.Where("CAST(id AS TEXT) LIKE ?", "%"+orderID+"%")
 	}
 
 	// Count total

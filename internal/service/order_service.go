@@ -16,7 +16,7 @@ type OrderService interface {
 	UpdateOrder(id uuid.UUID, req entity.UpdateOrderRequest, companyID, branchID uuid.UUID) (*entity.OrderResponse, error)
 	DeleteOrder(id uuid.UUID, companyID, branchID uuid.UUID) error
 	GetOrderByID(id uuid.UUID, companyID, branchID *uuid.UUID) (*entity.OrderResponse, error)
-	GetAllOrders(companyID, branchID *uuid.UUID, pagination pkg.PaginationParams) ([]entity.OrderResponse, *pkg.PaginationMeta, error)
+	GetAllOrders(companyID, branchID *uuid.UUID, status, method, customer, orderID string, pagination pkg.PaginationParams) ([]entity.OrderResponse, *pkg.PaginationMeta, error)
 }
 
 type orderService struct {
@@ -286,8 +286,8 @@ func (s *orderService) GetOrderByID(id uuid.UUID, companyID, branchID *uuid.UUID
 	return s.toOrderResponse(order), nil
 }
 
-func (s *orderService) GetAllOrders(companyID, branchID *uuid.UUID, pagination pkg.PaginationParams) ([]entity.OrderResponse, *pkg.PaginationMeta, error) {
-	orders, total, err := s.orderRepo.FindAll(companyID, branchID, pagination)
+func (s *orderService) GetAllOrders(companyID, branchID *uuid.UUID, status, method, customer, orderID string, pagination pkg.PaginationParams) ([]entity.OrderResponse, *pkg.PaginationMeta, error) {
+	orders, total, err := s.orderRepo.FindAll(companyID, branchID, status, method, customer, orderID, pagination)
 	if err != nil {
 		return nil, nil, err
 	}

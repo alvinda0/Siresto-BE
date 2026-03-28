@@ -190,10 +190,20 @@ func (h *OrderHandler) GetOrderByID(c *gin.Context) {
 // @Produce json
 // @Param page query int false "Page number" default(1)
 // @Param limit query int false "Items per page" default(10)
+// @Param status query string false "Filter by status (PENDING, CONFIRMED, PREPARING, READY, COMPLETED, CANCELLED)"
+// @Param method query string false "Filter by order method (DINE_IN, TAKE_AWAY, DELIVERY)"
+// @Param customer query string false "Search by customer name (partial match)"
+// @Param order_id query string false "Search by order ID (partial match)"
 // @Success 200 {object} pkg.Response{data=[]entity.OrderResponse}
 // @Router /api/v1/orders [get]
 func (h *OrderHandler) GetAllOrders(c *gin.Context) {
 	pagination := pkg.GetPaginationParams(c)
+
+	// Get filter parameters from query
+	status := c.Query("status")
+	method := c.Query("method")
+	customer := c.Query("customer")
+	orderID := c.Query("order_id")
 
 	companyID, _ := c.Get("company_id")
 	branchID, _ := c.Get("branch_id")
@@ -201,7 +211,7 @@ func (h *OrderHandler) GetAllOrders(c *gin.Context) {
 	companyUUID := companyID.(uuid.UUID)
 	branchUUID := branchID.(uuid.UUID)
 
-	orders, meta, err := h.orderService.GetAllOrders(&companyUUID, &branchUUID, pagination)
+	orders, meta, err := h.orderService.GetAllOrders(&companyUUID, &branchUUID, status, method, customer, orderID, pagination)
 	if err != nil {
 		pkg.ErrorResponse(c, http.StatusInternalServerError, "Failed to retrieve orders", err.Error())
 		return

@@ -6,8 +6,10 @@ import (
 	"project-name/internal/middleware"
 	"project-name/internal/repository"
 	"project-name/internal/service"
+	"project-name/internal/websocket"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func SetupRoutes(r *gin.Engine) {
@@ -39,6 +41,11 @@ func SetupRoutes(r *gin.Engine) {
 	productService := service.NewProductService(productRepo, categoryRepo, branchRepo)
 	productHandler := handler.NewProductHandler(productService)
 
+	// Order dependencies
+	orderRepo := repository.NewOrderRepository(config.DB)
+	orderService := service.NewOrderService(orderRepo, productRepo, branchRepo)
+	orderHandler := handler.NewOrderHandler(orderService)
+
 	// API Log dependencies
 	apiLogRepo := repository.NewAPILogRepository(config.DB)
 	apiLogService := service.NewAPILogService(apiLogRepo)
@@ -55,6 +62,7 @@ func SetupRoutes(r *gin.Engine) {
 	{
 		public.POST("/register", userHandler.Register)
 		public.POST("/login", userHandler.Login)
+		public.POST("/public/orders", orderHandler.CreatePublicOrder)
 	}
 
 	// Auth routes (protected)
@@ -105,6 +113,25 @@ func SetupRoutes(r *gin.Engine) {
 		external.DELETE("/products/:id", productHandler.DeleteProduct)
 		external.GET("/products/:id", productHandler.GetProductByID)
 		external.GET("/products", productHandler.GetAllProducts)
+
+		// Order routes
+		external.POST("/orders", orderHandler.CreateOrder)
+		external.PUT("/orders/:id", orderHandler.UpdateOrder)
+		external.DELETE("/orders/:id", orderHandler.DeleteOrder)
+		external.GET("/orders/:id", orderHandler.GetOrderByID)
+		external.GET("/orders", orderHandler.GetAllOrders)
+	}
+
+	// ===== WEBSOCKET (separate group for query param auth) =====
+	ws := v1.Group("/ws")
+	ws.Use(middleware.WebSocketAuthMiddleware())
+	{
+		ws.GET("/orders", func(c *gin.Context) {
+			companyID, _ := c.Get("company_id")
+			branchID, _ := c.Get("branch_id")
+			hub := websocket.GetHub()
+			websocket.ServeWs(hub, c, companyID.(uuid.UUID), branchID.(uuid.UUID))
+		})
 	}
 
 	// ===== DASHBOARD API (untuk platform SIRESTO) =====

@@ -1,0 +1,211 @@
+package handler
+
+import (
+	"net/http"
+	"project-name/internal/entity"
+	"project-name/internal/service"
+	"project-name/internal/websocket"
+	"project-name/pkg"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+)
+
+type OrderHandler struct {
+	orderService service.OrderService
+}
+
+func NewOrderHandler(orderService service.OrderService) *OrderHandler {
+	return &OrderHandler{orderService: orderService}
+}
+
+// CreateOrder godoc
+// @Summary Create a new order
+// @Tags Orders
+// @Accept json
+// @Produce json
+// @Param order body entity.CreateOrderRequest true "Order data"
+// @Success 201 {object} pkg.Response{data=entity.OrderResponse}
+// @Router /api/v1/orders [post]
+func (h *OrderHandler) CreateOrder(c *gin.Context) {
+	var req entity.CreateOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Invalid request body", err.Error())
+		return
+	}
+
+	// Get company_id and branch_id from context (set by auth middleware)
+	companyID, exists := c.Get("company_id")
+	if !exists {
+		pkg.ErrorResponse(c, http.StatusUnauthorized, "Company ID not found", "")
+		return
+	}
+
+	branchID, exists := c.Get("branch_id")
+	if !exists {
+		pkg.ErrorResponse(c, http.StatusUnauthorized, "Branch ID not found", "")
+		return
+	}
+
+	order, err := h.orderService.CreateOrder(req, companyID.(uuid.UUID), branchID.(uuid.UUID))
+	if err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Failed to create order", err.Error())
+		return
+	}
+
+	// Broadcast to WebSocket clients
+	hub := websocket.GetHub()
+	hub.BroadcastOrderUpdate("created", order, order.CompanyID, order.BranchID)
+
+	pkg.SuccessResponse(c, http.StatusCreated, "Order created successfully", order)
+}
+
+// CreatePublicOrder godoc
+// @Summary Create a new order without authentication
+// @Tags Public Orders
+// @Accept json
+// @Produce json
+// @Param order body entity.CreatePublicOrderRequest true "Order data"
+// @Success 201 {object} pkg.Response{data=entity.OrderResponse}
+// @Router /api/v1/public/orders [post]
+func (h *OrderHandler) CreatePublicOrder(c *gin.Context) {
+	var req entity.CreatePublicOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Invalid request body", err.Error())
+		return
+	}
+
+	order, err := h.orderService.CreatePublicOrder(req)
+	if err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Failed to create order", err.Error())
+		return
+	}
+
+	// Broadcast to WebSocket clients
+	hub := websocket.GetHub()
+	hub.BroadcastOrderUpdate("created", order, order.CompanyID, order.BranchID)
+
+	pkg.SuccessResponse(c, http.StatusCreated, "Order created successfully", order)
+}
+
+// UpdateOrder godoc
+// @Summary Update an order
+// @Tags Orders
+// @Accept json
+// @Produce json
+// @Param id path string true "Order ID"
+// @Param order body entity.UpdateOrderRequest true "Order data"
+// @Success 200 {object} pkg.Response{data=entity.OrderResponse}
+// @Router /api/v1/orders/{id} [put]
+func (h *OrderHandler) UpdateOrder(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Invalid order ID", err.Error())
+		return
+	}
+
+	var req entity.UpdateOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Invalid request body", err.Error())
+		return
+	}
+
+	companyID, _ := c.Get("company_id")
+	branchID, _ := c.Get("branch_id")
+
+	order, err := h.orderService.UpdateOrder(id, req, companyID.(uuid.UUID), branchID.(uuid.UUID))
+	if err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Failed to update order", err.Error())
+		return
+	}
+
+	// Broadcast to WebSocket clients
+	hub := websocket.GetHub()
+	hub.BroadcastOrderUpdate("updated", order, order.CompanyID, order.BranchID)
+
+	pkg.SuccessResponse(c, http.StatusOK, "Order updated successfully", order)
+}
+
+// DeleteOrder godoc
+// @Summary Delete an order
+// @Tags Orders
+// @Produce json
+// @Param id path string true "Order ID"
+// @Success 200 {object} pkg.Response
+// @Router /api/v1/orders/{id} [delete]
+func (h *OrderHandler) DeleteOrder(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Invalid order ID", err.Error())
+		return
+	}
+
+	companyID, _ := c.Get("company_id")
+	branchID, _ := c.Get("branch_id")
+
+	if err := h.orderService.DeleteOrder(id, companyID.(uuid.UUID), branchID.(uuid.UUID)); err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Failed to delete order", err.Error())
+		return
+	}
+
+	// Broadcast to WebSocket clients
+	hub := websocket.GetHub()
+	hub.BroadcastOrderUpdate("deleted", map[string]interface{}{"id": id}, companyID.(uuid.UUID), branchID.(uuid.UUID))
+
+	pkg.SuccessResponse(c, http.StatusOK, "Order deleted successfully", nil)
+}
+
+// GetOrderByID godoc
+// @Summary Get order by ID
+// @Tags Orders
+// @Produce json
+// @Param id path string true "Order ID"
+// @Success 200 {object} pkg.Response{data=entity.OrderResponse}
+// @Router /api/v1/orders/{id} [get]
+func (h *OrderHandler) GetOrderByID(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Invalid order ID", err.Error())
+		return
+	}
+
+	companyID, _ := c.Get("company_id")
+	branchID, _ := c.Get("branch_id")
+
+	companyUUID := companyID.(uuid.UUID)
+	branchUUID := branchID.(uuid.UUID)
+
+	order, err := h.orderService.GetOrderByID(id, &companyUUID, &branchUUID)
+	if err != nil {
+		pkg.ErrorResponse(c, http.StatusNotFound, "Order not found", err.Error())
+		return
+	}
+
+	pkg.SuccessResponse(c, http.StatusOK, "Order retrieved successfully", order)
+}
+
+// GetAllOrders godoc
+// @Summary Get all orders
+// @Tags Orders
+// @Produce json
+// @Param page query int false "Page number" default(1)
+// @Param limit query int false "Items per page" default(10)
+// @Success 200 {object} pkg.Response{data=[]entity.OrderResponse}
+// @Router /api/v1/orders [get]
+func (h *OrderHandler) GetAllOrders(c *gin.Context) {
+	pagination := pkg.GetPaginationParams(c)
+
+	companyID, _ := c.Get("company_id")
+	branchID, _ := c.Get("branch_id")
+
+	companyUUID := companyID.(uuid.UUID)
+	branchUUID := branchID.(uuid.UUID)
+
+	orders, meta, err := h.orderService.GetAllOrders(&companyUUID, &branchUUID, pagination)
+	if err != nil {
+		pkg.ErrorResponse(c, http.StatusInternalServerError, "Failed to retrieve orders", err.Error())
+		return
+	}
+
+	pkg.SuccessResponseWithMeta(c, http.StatusOK, "Orders retrieved successfully", orders, meta)
+}

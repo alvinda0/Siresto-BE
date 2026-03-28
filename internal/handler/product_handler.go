@@ -206,8 +206,8 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	}
 
 	// Extract UUID from pointer
-	companyID := *(companyIDVal.(*uuid.UUID))
-	branchID := *(branchIDVal.(*uuid.UUID))
+	companyID := companyIDVal.(uuid.UUID)
+	branchID := branchIDVal.(uuid.UUID)
 
 	// Parse UUIDs
 	reqBranchID, err := uuid.Parse(req.BranchID)
@@ -262,7 +262,7 @@ func (h *ProductHandler) GetAllProducts(c *gin.Context) {
 	userBranchIDVal, _ := c.Get("branch_id")
 
 	// Extract company UUID from pointer
-	companyID := *(companyIDVal.(*uuid.UUID))
+	companyID := companyIDVal.(uuid.UUID)
 
 	var branchID uuid.UUID
 
@@ -291,7 +291,7 @@ func (h *ProductHandler) GetAllProducts(c *gin.Context) {
 			pkg.ErrorResponse(c, http.StatusUnauthorized, "Branch ID not found", "")
 			return
 		}
-		branchID = *(userBranchIDVal.(*uuid.UUID))
+		branchID = userBranchIDVal.(uuid.UUID)
 	}
 
 	// Get query parameters
@@ -339,8 +339,8 @@ func (h *ProductHandler) GetProductByID(c *gin.Context) {
 	}
 
 	// Extract UUID from pointer
-	companyID := *(companyIDVal.(*uuid.UUID))
-	branchID := *(branchIDVal.(*uuid.UUID))
+	companyID := companyIDVal.(uuid.UUID)
+	branchID := branchIDVal.(uuid.UUID)
 
 	product, err := h.productService.GetProductByID(id, companyID, branchID)
 	if err != nil {
@@ -430,8 +430,8 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	}
 
 	// Extract UUID from pointer
-	companyID := *(companyIDVal.(*uuid.UUID))
-	branchID := *(branchIDVal.(*uuid.UUID))
+	companyID := companyIDVal.(uuid.UUID)
+	branchID := branchIDVal.(uuid.UUID)
 
 	// Parse category UUID
 	categoryID, err := uuid.Parse(req.CategoryID)
@@ -485,8 +485,8 @@ func (h *ProductHandler) DeleteProduct(c *gin.Context) {
 	}
 
 	// Extract UUID from pointer
-	companyID := *(companyIDVal.(*uuid.UUID))
-	branchID := *(branchIDVal.(*uuid.UUID))
+	companyID := companyIDVal.(uuid.UUID)
+	branchID := branchIDVal.(uuid.UUID)
 
 	if err := h.productService.DeleteProduct(id, companyID, branchID); err != nil {
 		pkg.ErrorResponse(c, http.StatusBadRequest, "Failed to delete product", err.Error())

@@ -9,7 +9,7 @@ import (
 // RequireInternalRole middleware untuk memastikan hanya internal users yang bisa akses
 func RequireInternalRole() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		internalRole, exists := c.Get("internalRole")
+		internalRole, exists := c.Get("internal_role")
 		
 		// Jika tidak ada internalRole atau kosong, berarti bukan internal user
 		if !exists || internalRole == "" {
@@ -27,7 +27,7 @@ func RequireInternalRole() gin.HandlerFunc {
 // RequireExternalRole middleware untuk memastikan hanya external users yang bisa akses
 func RequireExternalRole() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		externalRole, exists := c.Get("externalRole")
+		externalRole, exists := c.Get("external_role")
 		
 		// Jika tidak ada externalRole atau kosong, berarti bukan external user
 		if !exists || externalRole == "" {
@@ -45,8 +45,8 @@ func RequireExternalRole() gin.HandlerFunc {
 // RequireRoles middleware untuk memastikan user memiliki salah satu role yang diizinkan
 func RequireRoles(allowedRoles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		internalRole, _ := c.Get("internalRole")
-		externalRole, _ := c.Get("externalRole")
+		internalRole, _ := c.Get("internal_role")
+		externalRole, _ := c.Get("external_role")
 		
 		userRole := ""
 		if internalRole != "" {

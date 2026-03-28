@@ -13,6 +13,7 @@ import (
 type JWTClaims struct {
 	UserID       uuid.UUID  `json:"user_id"`
 	Email        string     `json:"email"`
+	RoleType     string     `json:"role_type"` // INTERNAL or EXTERNAL
 	InternalRole string     `json:"internal_role,omitempty"`
 	ExternalRole string     `json:"external_role,omitempty"`
 	CompanyID    *uuid.UUID `json:"company_id,omitempty"`
@@ -42,12 +43,19 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		if claims, ok := token.Claims.(*JWTClaims); ok {
-			c.Set("userID", claims.UserID)
+			c.Set("user_id", claims.UserID)
 			c.Set("email", claims.Email)
-			c.Set("internalRole", claims.InternalRole)
-			c.Set("externalRole", claims.ExternalRole)
-			c.Set("companyID", claims.CompanyID)
-			c.Set("branchID", claims.BranchID)
+			c.Set("role_type", claims.RoleType) // Set role_type ke context
+			c.Set("internal_role", claims.InternalRole)
+			c.Set("external_role", claims.ExternalRole)
+			
+			// Set company_id dan branch_id sebagai string untuk filtering
+			if claims.CompanyID != nil {
+				c.Set("company_id", claims.CompanyID.String())
+			}
+			if claims.BranchID != nil {
+				c.Set("branch_id", claims.BranchID.String())
+			}
 		}
 
 		c.Next()

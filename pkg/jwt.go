@@ -11,6 +11,7 @@ import (
 type JWTClaims struct {
 	UserID       uuid.UUID  `json:"user_id"`
 	Email        string     `json:"email"`
+	RoleType     string     `json:"role_type"` // INTERNAL or EXTERNAL
 	InternalRole string     `json:"internal_role,omitempty"`
 	ExternalRole string     `json:"external_role,omitempty"`
 	CompanyID    *uuid.UUID `json:"company_id,omitempty"`
@@ -18,10 +19,11 @@ type JWTClaims struct {
 	jwt.RegisteredClaims
 }
 
-func GenerateJWT(userID uuid.UUID, email string, internalRole, externalRole string, companyID, branchID *uuid.UUID) (string, error) {
+func GenerateJWT(userID uuid.UUID, email string, roleType string, internalRole, externalRole string, companyID, branchID *uuid.UUID) (string, error) {
 	claims := JWTClaims{
 		UserID:       userID,
 		Email:        email,
+		RoleType:     roleType,
 		InternalRole: internalRole,
 		ExternalRole: externalRole,
 		CompanyID:    companyID,

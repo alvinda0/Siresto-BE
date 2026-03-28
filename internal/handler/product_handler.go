@@ -193,13 +193,13 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	}
 
 	// Get company_id and branch_id from context (set by auth middleware)
-	companyIDVal, exists := c.Get("companyID")
+	companyIDVal, exists := c.Get("company_id")
 	if !exists || companyIDVal == nil {
 		pkg.ErrorResponse(c, http.StatusUnauthorized, "Company ID not found", "")
 		return
 	}
 
-	branchIDVal, exists := c.Get("branchID")
+	branchIDVal, exists := c.Get("branch_id")
 	if !exists || branchIDVal == nil {
 		pkg.ErrorResponse(c, http.StatusUnauthorized, "Branch ID not found", "")
 		return
@@ -251,15 +251,15 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 
 func (h *ProductHandler) GetAllProducts(c *gin.Context) {
 	// Get company_id and branch_id from context
-	companyIDVal, exists := c.Get("companyID")
+	companyIDVal, exists := c.Get("company_id")
 	if !exists || companyIDVal == nil {
 		pkg.ErrorResponse(c, http.StatusUnauthorized, "Company ID not found", "")
 		return
 	}
 
 	// Get user role
-	externalRole, _ := c.Get("externalRole")
-	userBranchIDVal, _ := c.Get("branchID")
+	externalRole, _ := c.Get("external_role")
+	userBranchIDVal, _ := c.Get("branch_id")
 
 	// Extract company UUID from pointer
 	companyID := *(companyIDVal.(*uuid.UUID))
@@ -326,13 +326,13 @@ func (h *ProductHandler) GetProductByID(c *gin.Context) {
 	}
 
 	// Get company_id and branch_id from context
-	companyIDVal, exists := c.Get("companyID")
+	companyIDVal, exists := c.Get("company_id")
 	if !exists || companyIDVal == nil {
 		pkg.ErrorResponse(c, http.StatusUnauthorized, "Company ID not found", "")
 		return
 	}
 
-	branchIDVal, exists := c.Get("branchID")
+	branchIDVal, exists := c.Get("branch_id")
 	if !exists || branchIDVal == nil {
 		pkg.ErrorResponse(c, http.StatusUnauthorized, "Branch ID not found", "")
 		return
@@ -417,13 +417,13 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	}
 
 	// Get company_id and branch_id from context
-	companyIDVal, exists := c.Get("companyID")
+	companyIDVal, exists := c.Get("company_id")
 	if !exists || companyIDVal == nil {
 		pkg.ErrorResponse(c, http.StatusUnauthorized, "Company ID not found", "")
 		return
 	}
 
-	branchIDVal, exists := c.Get("branchID")
+	branchIDVal, exists := c.Get("branch_id")
 	if !exists || branchIDVal == nil {
 		pkg.ErrorResponse(c, http.StatusUnauthorized, "Branch ID not found", "")
 		return
@@ -472,13 +472,13 @@ func (h *ProductHandler) DeleteProduct(c *gin.Context) {
 	}
 
 	// Get company_id and branch_id from context
-	companyIDVal, exists := c.Get("companyID")
+	companyIDVal, exists := c.Get("company_id")
 	if !exists || companyIDVal == nil {
 		pkg.ErrorResponse(c, http.StatusUnauthorized, "Company ID not found", "")
 		return
 	}
 
-	branchIDVal, exists := c.Get("branchID")
+	branchIDVal, exists := c.Get("branch_id")
 	if !exists || branchIDVal == nil {
 		pkg.ErrorResponse(c, http.StatusUnauthorized, "Branch ID not found", "")
 		return

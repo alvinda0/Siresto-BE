@@ -39,6 +39,14 @@ func SetupRoutes(r *gin.Engine) {
 	productService := service.NewProductService(productRepo, categoryRepo, branchRepo)
 	productHandler := handler.NewProductHandler(productService)
 
+	// API Log dependencies
+	apiLogRepo := repository.NewAPILogRepository(config.DB)
+	apiLogService := service.NewAPILogService(apiLogRepo)
+	apiLogHandler := handler.NewAPILogHandler(apiLogService)
+
+	// Apply logging middleware globally
+	r.Use(middleware.LoggingMiddleware(apiLogService))
+
 	// API v1
 	v1 := r.Group("/api/v1")
 
@@ -114,5 +122,14 @@ func SetupRoutes(r *gin.Engine) {
 		
 		// Lihat semua external users (client restoran)
 		dashboard.GET("/external-users", userHandler.GetExternalUsers)
+	}
+
+	// ===== API LOGS (untuk monitoring) =====
+	logs := v1.Group("/logs")
+	logs.Use(middleware.AuthMiddleware())
+	// Internal users bisa lihat semua logs, external users (OWNER, ADMIN) hanya lihat logs company/branch mereka
+	{
+		logs.GET("", apiLogHandler.GetAllLogs)
+		logs.GET("/:id", apiLogHandler.GetLogByID)
 	}
 }

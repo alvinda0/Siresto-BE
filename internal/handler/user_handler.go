@@ -74,6 +74,8 @@ func (h *UserHandler) Login(c *gin.Context) {
 	
 	// Tentukan internal atau external role berdasarkan role type
 	var internalRole, externalRole string
+	roleType := string(user.Role.Type) // INTERNAL or EXTERNAL
+	
 	if user.Role.Type == "INTERNAL" {
 		internalRole = user.Role.Name
 	} else if user.Role.Type == "EXTERNAL" {
@@ -81,7 +83,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 	}
 	
 	// Generate JWT token
-	token, err := pkg.GenerateJWT(user.ID, user.Email, internalRole, externalRole, user.CompanyID, user.BranchID)
+	token, err := pkg.GenerateJWT(user.ID, user.Email, roleType, internalRole, externalRole, user.CompanyID, user.BranchID)
 	if err != nil {
 		pkg.ErrorResponse(c, 500, "Failed to generate token", err.Error())
 		return
@@ -94,7 +96,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 
 // GetMe untuk mendapatkan informasi user yang sedang login
 func (h *UserHandler) GetMe(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		pkg.ErrorResponse(c, 401, "Unauthorized", "User ID not found in token")
 		return
@@ -178,7 +180,7 @@ func (h *UserHandler) GetCompanyUsers(c *gin.Context) {
 	}
 
 	// Get current user ID
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		pkg.ErrorResponse(c, 401, "Unauthorized", "User ID not found")
 		return

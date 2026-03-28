@@ -75,7 +75,7 @@ func (h *BranchHandler) GetBranchesByCompany(c *gin.Context) {
 	}
 
 	// Get current user ID
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return

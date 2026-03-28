@@ -225,5 +225,39 @@ func MigrateDB() {
 	DB.Exec("CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id)")
 	DB.Exec("CREATE INDEX IF NOT EXISTS idx_products_deleted_at ON products(deleted_at)")
 	
+	// Create api_logs table
+	if err := DB.Exec(`
+		CREATE TABLE IF NOT EXISTS api_logs (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			method VARCHAR(10) NOT NULL,
+			path VARCHAR(255) NOT NULL,
+			status_code INTEGER NOT NULL,
+			response_time BIGINT NOT NULL,
+			ip_address VARCHAR(45),
+			user_agent TEXT,
+			access_from VARCHAR(50),
+			user_id UUID,
+			company_id UUID,
+			branch_id UUID,
+			request_body TEXT,
+			response_body TEXT,
+			error_message TEXT,
+			created_at TIMESTAMPTZ DEFAULT NOW(),
+			updated_at TIMESTAMPTZ DEFAULT NOW(),
+			deleted_at TIMESTAMPTZ
+		)
+	`).Error; err != nil {
+		log.Fatal("Failed to create api_logs table:", err)
+	}
+	
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_api_logs_method ON api_logs(method)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_api_logs_path ON api_logs(path)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_api_logs_user_id ON api_logs(user_id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_api_logs_company_id ON api_logs(company_id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_api_logs_branch_id ON api_logs(branch_id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_api_logs_access_from ON api_logs(access_from)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_api_logs_created_at ON api_logs(created_at)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_api_logs_deleted_at ON api_logs(deleted_at)")
+	
 	log.Println("Database migrated successfully")
 }

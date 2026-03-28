@@ -28,6 +28,10 @@ func SetupRoutes(r *gin.Engine) {
 	roleService := service.NewRoleService(roleRepo)
 	roleHandler := handler.NewRoleHandler(roleService)
 
+	categoryRepo := repository.NewCategoryRepository(config.DB)
+	categoryService := service.NewCategoryService(categoryRepo, companyRepo)
+	categoryHandler := handler.NewCategoryHandler(categoryService)
+
 	// API v1
 	v1 := r.Group("/api/v1")
 
@@ -72,6 +76,13 @@ func SetupRoutes(r *gin.Engine) {
 		external.POST("/branches", branchHandler.CreateBranch)
 		external.GET("/branches/detail/:id", branchHandler.GetBranch)
 		external.GET("/branches/company/:company_id", branchHandler.GetBranchesByCompany)
+
+		// Category routes
+		external.POST("/categories", categoryHandler.CreateCategory)
+		external.PUT("/categories/:id", categoryHandler.UpdateCategory)
+		external.DELETE("/categories/:id", categoryHandler.DeleteCategory)
+		external.GET("/categories/:id", categoryHandler.GetCategory)
+		external.GET("/categories", categoryHandler.GetCategories)
 	}
 
 	// ===== DASHBOARD API (untuk platform SIRESTO) =====

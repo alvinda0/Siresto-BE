@@ -16,7 +16,7 @@ func main() {
 
 	// Drop all tables
 	log.Println("Dropping existing tables...")
-	tables := []string{"branches", "companies", "users", "roles"}
+	tables := []string{"categories", "branches", "companies", "users", "roles"}
 	for _, table := range tables {
 		if err := config.DB.Exec("DROP TABLE IF EXISTS " + table + " CASCADE").Error; err != nil {
 			log.Printf("Warning: Failed to drop %s table: %v", table, err)

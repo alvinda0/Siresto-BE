@@ -178,6 +178,67 @@ func SeedDatabase() {
 		log.Println("✓ WAITER created: waiter@restaurant.com / waiter123")
 	}
 
+	// Seed Categories
+	log.Println("\nSeeding categories...")
+	
+	// Main Categories (Company Level - berlaku untuk semua cabang)
+	makanan := entity.Category{
+		CompanyID:   company.ID,
+		BranchID:    nil, // nil = berlaku untuk semua cabang
+		Name:        "Makanan",
+		Description: "Kategori makanan",
+		Position:    1,
+		IsActive:    true,
+	}
+	if err := DB.FirstOrCreate(&makanan, entity.Category{Name: "Makanan", CompanyID: company.ID, BranchID: nil}).Error; err != nil {
+		log.Printf("Error seeding category Makanan: %v", err)
+	} else {
+		log.Printf("✓ Category created: Makanan (Company Level, ID: %s)", makanan.ID)
+	}
+
+	minuman := entity.Category{
+		CompanyID:   company.ID,
+		BranchID:    nil,
+		Name:        "Minuman",
+		Description: "Kategori minuman",
+		Position:    2,
+		IsActive:    true,
+	}
+	if err := DB.FirstOrCreate(&minuman, entity.Category{Name: "Minuman", CompanyID: company.ID, BranchID: nil}).Error; err != nil {
+		log.Printf("Error seeding category Minuman: %v", err)
+	} else {
+		log.Printf("✓ Category created: Minuman (Company Level, ID: %s)", minuman.ID)
+	}
+
+	snack := entity.Category{
+		CompanyID:   company.ID,
+		BranchID:    nil,
+		Name:        "Snack",
+		Description: "Kategori snack dan cemilan",
+		Position:    3,
+		IsActive:    true,
+	}
+	if err := DB.FirstOrCreate(&snack, entity.Category{Name: "Snack", CompanyID: company.ID, BranchID: nil}).Error; err != nil {
+		log.Printf("Error seeding category Snack: %v", err)
+	} else {
+		log.Printf("✓ Category created: Snack (Company Level, ID: %s)", snack.ID)
+	}
+
+	// Branch Specific Categories (Khusus Cabang Jakarta Pusat)
+	menuSpesial := entity.Category{
+		CompanyID:   company.ID,
+		BranchID:    &branch.ID,
+		Name:        "Menu Spesial Jakarta",
+		Description: "Menu khusus cabang Jakarta Pusat",
+		Position:    1,
+		IsActive:    true,
+	}
+	if err := DB.FirstOrCreate(&menuSpesial, entity.Category{Name: "Menu Spesial Jakarta", CompanyID: company.ID, BranchID: &branch.ID}).Error; err != nil {
+		log.Printf("Error seeding branch category: %v", err)
+	} else {
+		log.Printf("✓ Branch Category created: Menu Spesial Jakarta (Branch: %s)", branch.Name)
+	}
+
 	log.Println("Database seeding completed!")
 	log.Println("\n========== TEST ACCOUNTS ==========")
 	log.Println("INTERNAL USERS (Platform SIRESTO):")

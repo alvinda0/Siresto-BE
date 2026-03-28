@@ -11,6 +11,9 @@ import (
 )
 
 func SetupRoutes(r *gin.Engine) {
+	// Serve static files (uploaded images)
+	r.Static("/uploads", "./uploads")
+
 	// Initialize dependencies
 	userRepo := repository.NewUserRepository(config.DB)
 	companyRepo := repository.NewCompanyRepository(config.DB)
@@ -31,6 +34,10 @@ func SetupRoutes(r *gin.Engine) {
 	categoryRepo := repository.NewCategoryRepository(config.DB)
 	categoryService := service.NewCategoryService(categoryRepo, companyRepo)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
+
+	productRepo := repository.NewProductRepository(config.DB)
+	productService := service.NewProductService(productRepo, categoryRepo, branchRepo)
+	productHandler := handler.NewProductHandler(productService)
 
 	// API v1
 	v1 := r.Group("/api/v1")
@@ -83,6 +90,13 @@ func SetupRoutes(r *gin.Engine) {
 		external.DELETE("/categories/:id", categoryHandler.DeleteCategory)
 		external.GET("/categories/:id", categoryHandler.GetCategory)
 		external.GET("/categories", categoryHandler.GetCategories)
+
+		// Product routes
+		external.POST("/products", productHandler.CreateProduct)
+		external.PUT("/products/:id", productHandler.UpdateProduct)
+		external.DELETE("/products/:id", productHandler.DeleteProduct)
+		external.GET("/products/:id", productHandler.GetProductByID)
+		external.GET("/products", productHandler.GetAllProducts)
 	}
 
 	// ===== DASHBOARD API (untuk platform SIRESTO) =====

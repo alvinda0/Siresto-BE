@@ -195,5 +195,35 @@ func MigrateDB() {
 	DB.Exec("CREATE INDEX IF NOT EXISTS idx_categories_branch_id ON categories(branch_id)")
 	DB.Exec("CREATE INDEX IF NOT EXISTS idx_categories_position ON categories(position)")
 	
+	// Create products table
+	if err := DB.Exec(`
+		CREATE TABLE IF NOT EXISTS products (
+			id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+			company_id uuid NOT NULL,
+			branch_id uuid NOT NULL,
+			category_id uuid NOT NULL,
+			image text,
+			name text NOT NULL,
+			description text,
+			stock integer DEFAULT 0,
+			price numeric(15,2) NOT NULL,
+			position text,
+			is_available boolean DEFAULT true,
+			created_at timestamptz,
+			updated_at timestamptz,
+			deleted_at timestamptz,
+			CONSTRAINT fk_products_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+			CONSTRAINT fk_products_branch FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE,
+			CONSTRAINT fk_products_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+		)
+	`).Error; err != nil {
+		log.Fatal("Failed to create products table:", err)
+	}
+	
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_products_company_id ON products(company_id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_products_branch_id ON products(branch_id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_products_deleted_at ON products(deleted_at)")
+	
 	log.Println("Database migrated successfully")
 }

@@ -7,19 +7,27 @@ import (
 	"gorm.io/gorm"
 )
 
-type BranchRepository struct {
+type BranchRepository interface {
+	Create(branch *entity.Branch) error
+	FindByID(id uuid.UUID) (*entity.Branch, error)
+	FindByCompanyID(companyID uuid.UUID, limit, offset int) ([]entity.Branch, int64, error)
+	Update(branch *entity.Branch) error
+	Delete(id uuid.UUID) error
+}
+
+type branchRepository struct {
 	DB *gorm.DB
 }
 
-func NewBranchRepository(db *gorm.DB) *BranchRepository {
-	return &BranchRepository{DB: db}
+func NewBranchRepository(db *gorm.DB) BranchRepository {
+	return &branchRepository{DB: db}
 }
 
-func (r *BranchRepository) Create(branch *entity.Branch) error {
+func (r *branchRepository) Create(branch *entity.Branch) error {
 	return r.DB.Create(branch).Error
 }
 
-func (r *BranchRepository) FindByID(id uuid.UUID) (*entity.Branch, error) {
+func (r *branchRepository) FindByID(id uuid.UUID) (*entity.Branch, error) {
 	var branch entity.Branch
 	err := r.DB.Where("id = ?", id).
 		Preload("Company.Owner.Role").
@@ -29,7 +37,7 @@ func (r *BranchRepository) FindByID(id uuid.UUID) (*entity.Branch, error) {
 	return &branch, err
 }
 
-func (r *BranchRepository) FindByCompanyID(companyID uuid.UUID, limit, offset int) ([]entity.Branch, int64, error) {
+func (r *branchRepository) FindByCompanyID(companyID uuid.UUID, limit, offset int) ([]entity.Branch, int64, error) {
 	var branches []entity.Branch
 	var total int64
 	
@@ -48,10 +56,10 @@ func (r *BranchRepository) FindByCompanyID(companyID uuid.UUID, limit, offset in
 	return branches, total, err
 }
 
-func (r *BranchRepository) Update(branch *entity.Branch) error {
+func (r *branchRepository) Update(branch *entity.Branch) error {
 	return r.DB.Save(branch).Error
 }
 
-func (r *BranchRepository) Delete(id uuid.UUID) error {
+func (r *branchRepository) Delete(id uuid.UUID) error {
 	return r.DB.Where("id = ?", id).Delete(&entity.Branch{}).Error
 }

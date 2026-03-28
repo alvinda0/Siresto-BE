@@ -9,12 +9,12 @@ import (
 )
 
 type BranchService struct {
-	branchRepo  *repository.BranchRepository
+	branchRepo  repository.BranchRepository
 	companyRepo *repository.CompanyRepository
 	userRepo    repository.UserRepository
 }
 
-func NewBranchService(branchRepo *repository.BranchRepository, companyRepo *repository.CompanyRepository, userRepo repository.UserRepository) *BranchService {
+func NewBranchService(branchRepo repository.BranchRepository, companyRepo *repository.CompanyRepository, userRepo repository.UserRepository) *BranchService {
 	return &BranchService{
 		branchRepo:  branchRepo,
 		companyRepo: companyRepo,

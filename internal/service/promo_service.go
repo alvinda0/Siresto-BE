@@ -44,6 +44,23 @@ func (s *promoService) CreatePromo(companyID uuid.UUID, branchID *uuid.UUID, req
 		return nil, errors.New("end_date must be after start_date")
 	}
 
+	// Validate promo category
+	if req.PromoCategory != "normal" && req.PromoCategory != "product" && req.PromoCategory != "bundle" {
+		return nil, errors.New("promo_category must be 'normal', 'product', or 'bundle'")
+	}
+
+	// Validate product promo
+	if req.PromoCategory == "product" && len(req.ProductIDs) == 0 {
+		return nil, errors.New("product_ids required for product promo")
+	}
+
+	// Validate bundle promo
+	if req.PromoCategory == "bundle" {
+		if len(req.BundleItems) < 2 {
+			return nil, errors.New("bundle promo requires at least 2 products")
+		}
+	}
+
 	// Set default is_active
 	isActive := true
 	if req.IsActive != nil {
@@ -63,6 +80,7 @@ func (s *promoService) CreatePromo(companyID uuid.UUID, branchID *uuid.UUID, req
 		BranchID:       finalBranchID,
 		Name:           req.Name,
 		Code:           req.Code,
+		PromoCategory:  req.PromoCategory,
 		Type:           req.Type,
 		Value:          req.Value,
 		MaxDiscount:    req.MaxDiscount,
@@ -76,6 +94,27 @@ func (s *promoService) CreatePromo(companyID uuid.UUID, branchID *uuid.UUID, req
 
 	if err := s.promoRepo.Create(promo); err != nil {
 		return nil, err
+	}
+
+	// Create promo products if product category
+	if req.PromoCategory == "product" && len(req.ProductIDs) > 0 {
+		if err := s.promoRepo.CreatePromoProducts(promo.ID, req.ProductIDs); err != nil {
+			return nil, err
+		}
+	}
+
+	// Create promo bundles if bundle category
+	if req.PromoCategory == "bundle" && len(req.BundleItems) > 0 {
+		bundles := make([]entity.PromoBundle, len(req.BundleItems))
+		for i, item := range req.BundleItems {
+			bundles[i] = entity.PromoBundle{
+				ProductID: item.ProductID,
+				Quantity:  item.Quantity,
+			}
+		}
+		if err := s.promoRepo.CreatePromoBundles(promo.ID, bundles); err != nil {
+			return nil, err
+		}
 	}
 
 	// Reload with relations
@@ -102,6 +141,13 @@ func (s *promoService) UpdatePromo(id, companyID uuid.UUID, branchID *uuid.UUID,
 	}
 	if req.Code != "" {
 		promo.Code = req.Code
+	}
+	if req.PromoCategory != "" {
+		// Validate promo category
+		if req.PromoCategory != "normal" && req.PromoCategory != "product" && req.PromoCategory != "bundle" {
+			return nil, errors.New("promo_category must be 'normal', 'product', or 'bundle'")
+		}
+		promo.PromoCategory = req.PromoCategory
 	}
 	if req.Type != "" {
 		promo.Type = req.Type
@@ -141,11 +187,52 @@ func (s *promoService) UpdatePromo(id, companyID uuid.UUID, branchID *uuid.UUID,
 		return nil, errors.New("end_date must be after start_date")
 	}
 
+	// Update promo products if provided
+	if req.PromoCategory == "product" || (promo.PromoCategory == "product" && len(req.ProductIDs) > 0) {
+		// Delete existing products
+		if err := s.promoRepo.DeletePromoProducts(promo.ID); err != nil {
+			return nil, err
+		}
+		// Create new products
+		if len(req.ProductIDs) > 0 {
+			if err := s.promoRepo.CreatePromoProducts(promo.ID, req.ProductIDs); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// Update promo bundles if provided
+	if req.PromoCategory == "bundle" || (promo.PromoCategory == "bundle" && len(req.BundleItems) > 0) {
+		// Delete existing bundles
+		if err := s.promoRepo.DeletePromoBundles(promo.ID); err != nil {
+			return nil, err
+		}
+		// Create new bundles
+		if len(req.BundleItems) > 0 {
+			bundles := make([]entity.PromoBundle, len(req.BundleItems))
+			for i, item := range req.BundleItems {
+				bundles[i] = entity.PromoBundle{
+					ProductID: item.ProductID,
+					Quantity:  item.Quantity,
+				}
+			}
+			if err := s.promoRepo.CreatePromoBundles(promo.ID, bundles); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	if err := s.promoRepo.Update(promo); err != nil {
 		return nil, err
 	}
 
-	return s.toResponse(promo), nil
+	// Reload with relations
+	reloadedPromo, err := s.promoRepo.FindByID(promo.ID, companyID, branchID)
+	if err != nil {
+		return s.toResponse(promo), nil
+	}
+
+	return s.toResponse(reloadedPromo), nil
 }
 
 func (s *promoService) DeletePromo(id, companyID uuid.UUID, branchID *uuid.UUID) error {
@@ -243,6 +330,7 @@ func (s *promoService) toResponse(promo *entity.Promo) *entity.PromoResponse {
 		BranchID:       promo.BranchID,
 		Name:           promo.Name,
 		Code:           promo.Code,
+		PromoCategory:  promo.PromoCategory,
 		Type:           promo.Type,
 		Value:          promo.Value,
 		MaxDiscount:    promo.MaxDiscount,
@@ -262,6 +350,29 @@ func (s *promoService) toResponse(promo *entity.Promo) *entity.PromoResponse {
 	// Add branch name if exists
 	if promo.Branch != nil {
 		response.BranchName = &promo.Branch.Name
+	}
+
+	// Add products for product promo
+	if promo.PromoCategory == "product" && len(promo.PromoProducts) > 0 {
+		response.Products = make([]entity.PromoProductResponse, len(promo.PromoProducts))
+		for i, pp := range promo.PromoProducts {
+			response.Products[i] = entity.PromoProductResponse{
+				ProductID:   pp.ProductID,
+				ProductName: pp.Product.Name,
+			}
+		}
+	}
+
+	// Add bundle items for bundle promo
+	if promo.PromoCategory == "bundle" && len(promo.PromoBundles) > 0 {
+		response.BundleItems = make([]entity.PromoBundleResponse, len(promo.PromoBundles))
+		for i, pb := range promo.PromoBundles {
+			response.BundleItems[i] = entity.PromoBundleResponse{
+				ProductID:   pb.ProductID,
+				ProductName: pb.Product.Name,
+				Quantity:    pb.Quantity,
+			}
+		}
 	}
 
 	return response

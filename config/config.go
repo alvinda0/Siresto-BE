@@ -360,5 +360,38 @@ func MigrateDB() {
 	DB.Exec("CREATE INDEX IF NOT EXISTS idx_taxes_prioritas ON taxes(prioritas)")
 	DB.Exec("CREATE INDEX IF NOT EXISTS idx_taxes_tipe_pajak ON taxes(tipe_pajak)")
 	
+	// Create promos table
+	if err := DB.Exec(`
+		CREATE TABLE IF NOT EXISTS promos (
+			id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+			company_id uuid NOT NULL,
+			branch_id uuid,
+			name varchar(100) NOT NULL,
+			code varchar(50) NOT NULL,
+			type varchar(20) NOT NULL,
+			value decimal(15,2) NOT NULL,
+			max_discount decimal(15,2),
+			min_transaction decimal(15,2),
+			quota integer,
+			used_count integer DEFAULT 0,
+			start_date date NOT NULL,
+			end_date date NOT NULL,
+			is_active boolean DEFAULT true,
+			created_at timestamptz DEFAULT NOW(),
+			updated_at timestamptz DEFAULT NOW(),
+			CONSTRAINT fk_promos_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+			CONSTRAINT fk_promos_branch FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE
+		)
+	`).Error; err != nil {
+		log.Fatal("Failed to create promos table:", err)
+	}
+	
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_promos_company_id ON promos(company_id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_promos_branch_id ON promos(branch_id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_promos_code ON promos(code)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_promos_is_active ON promos(is_active)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_promos_start_date ON promos(start_date)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_promos_end_date ON promos(end_date)")
+	
 	log.Println("Database migrated successfully")
 }

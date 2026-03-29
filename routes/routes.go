@@ -56,6 +56,11 @@ func SetupRoutes(r *gin.Engine) {
 	taxService := service.NewTaxService(taxRepo)
 	taxHandler := handler.NewTaxHandler(taxService)
 
+	// Promo dependencies
+	promoRepo := repository.NewPromoRepository(config.DB)
+	promoService := service.NewPromoService(promoRepo)
+	promoHandler := handler.NewPromoHandler(promoService)
+
 	// Apply logging middleware globally
 	r.Use(middleware.LoggingMiddleware(apiLogService))
 
@@ -132,6 +137,13 @@ func SetupRoutes(r *gin.Engine) {
 		external.DELETE("/tax/:id", taxHandler.DeleteTax)
 		external.GET("/tax/:id", taxHandler.GetTaxByID)
 		external.GET("/tax", taxHandler.GetAllTaxes)
+
+		// Promo routes
+		external.POST("/promos", promoHandler.CreatePromo)
+		external.PUT("/promos/:id", promoHandler.UpdatePromo)
+		external.DELETE("/promos/:id", promoHandler.DeletePromo)
+		external.GET("/promos/:id", promoHandler.GetPromoByID)
+		external.GET("/promos", promoHandler.GetAllPromos)
 	}
 
 	// ===== WEBSOCKET (separate group for query param auth) =====

@@ -14,6 +14,7 @@ type TaxRepository interface {
 	FindByID(id, companyID uuid.UUID, branchID *uuid.UUID) (*entity.Tax, error)
 	FindByCompany(companyID uuid.UUID, page, limit int) ([]entity.Tax, int64, error)
 	FindByBranch(companyID, branchID uuid.UUID, page, limit int) ([]entity.Tax, int64, error)
+	FindActiveTaxesByBranch(companyID, branchID uuid.UUID) ([]entity.Tax, error)
 }
 
 type taxRepository struct {
@@ -113,4 +114,18 @@ func (r *taxRepository) FindByBranch(companyID, branchID uuid.UUID, page, limit 
 		Find(&taxes).Error
 	
 	return taxes, total, err
+}
+
+func (r *taxRepository) FindActiveTaxesByBranch(companyID, branchID uuid.UUID) ([]entity.Tax, error) {
+	var taxes []entity.Tax
+	
+	// Get active taxes (both company-level and branch-specific)
+	// Ordered by priority ASC (lowest priority number first = calculated first)
+	// Priority 1 = calculated first, Priority 2 = calculated second, etc.
+	err := r.db.
+		Where("company_id = ? AND (branch_id IS NULL OR branch_id = ?) AND status = ?", companyID, branchID, "active").
+		Order("prioritas ASC").
+		Find(&taxes).Error
+	
+	return taxes, err
 }

@@ -23,13 +23,15 @@ type orderService struct {
 	orderRepo   repository.OrderRepository
 	productRepo repository.ProductRepository
 	branchRepo  repository.BranchRepository
+	taxRepo     repository.TaxRepository
 }
 
-func NewOrderService(orderRepo repository.OrderRepository, productRepo repository.ProductRepository, branchRepo repository.BranchRepository) OrderService {
+func NewOrderService(orderRepo repository.OrderRepository, productRepo repository.ProductRepository, branchRepo repository.BranchRepository, taxRepo repository.TaxRepository) OrderService {
 	return &orderService{
 		orderRepo:   orderRepo,
 		productRepo: productRepo,
 		branchRepo:  branchRepo,
+		taxRepo:     taxRepo,
 	}
 }
 
@@ -44,8 +46,8 @@ func (s *orderService) CreateOrder(req entity.CreateOrderRequest, companyID, bra
 		return nil, errors.New("branch does not belong to your company")
 	}
 
-	// Calculate total and validate products
-	var totalAmount float64
+	// Calculate subtotal and validate products
+	var subtotalAmount float64
 	var orderItems []entity.OrderItem
 
 	for _, item := range req.OrderItems {
@@ -63,7 +65,7 @@ func (s *orderService) CreateOrder(req entity.CreateOrderRequest, companyID, bra
 		}
 
 		subtotal := product.Price * float64(item.Quantity)
-		totalAmount += subtotal
+		subtotalAmount += subtotal
 
 		orderItems = append(orderItems, entity.OrderItem{
 			ProductID: item.ProductID,
@@ -73,19 +75,29 @@ func (s *orderService) CreateOrder(req entity.CreateOrderRequest, companyID, bra
 		})
 	}
 
+	// Calculate taxes
+	taxAmount, _, err := s.calculateTaxes(subtotalAmount, companyID, branchID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate taxes: %v", err)
+	}
+
+	totalAmount := subtotalAmount + taxAmount
+
 	// Create order
 	order := &entity.Order{
-		CompanyID:     companyID,
-		BranchID:      branchID,
-		CustomerName:  req.CustomerName,
-		CustomerPhone: req.CustomerPhone,
-		TableNumber:   req.TableNumber,
-		Notes:         req.Notes,
-		ReferralCode:  req.ReferralCode,
-		OrderMethod:   req.OrderMethod,
-		PromoCode:     req.PromoCode,
-		Status:        entity.OrderStatusPending,
-		TotalAmount:   totalAmount,
+		CompanyID:      companyID,
+		BranchID:       branchID,
+		CustomerName:   req.CustomerName,
+		CustomerPhone:  req.CustomerPhone,
+		TableNumber:    req.TableNumber,
+		Notes:          req.Notes,
+		ReferralCode:   req.ReferralCode,
+		OrderMethod:    req.OrderMethod,
+		PromoCode:      req.PromoCode,
+		Status:         entity.OrderStatusPending,
+		SubtotalAmount: subtotalAmount,
+		TaxAmount:      taxAmount,
+		TotalAmount:    totalAmount,
 	}
 
 	if err := s.orderRepo.Create(order); err != nil {
@@ -116,8 +128,8 @@ func (s *orderService) CreatePublicOrder(req entity.CreatePublicOrderRequest) (*
 		return nil, errors.New("branch does not belong to the specified company")
 	}
 
-	// Calculate total and validate products
-	var totalAmount float64
+	// Calculate subtotal and validate products
+	var subtotalAmount float64
 	var orderItems []entity.OrderItem
 
 	for _, item := range req.OrderItems {
@@ -135,7 +147,7 @@ func (s *orderService) CreatePublicOrder(req entity.CreatePublicOrderRequest) (*
 		}
 
 		subtotal := product.Price * float64(item.Quantity)
-		totalAmount += subtotal
+		subtotalAmount += subtotal
 
 		orderItems = append(orderItems, entity.OrderItem{
 			ProductID: item.ProductID,
@@ -145,19 +157,29 @@ func (s *orderService) CreatePublicOrder(req entity.CreatePublicOrderRequest) (*
 		})
 	}
 
+	// Calculate taxes
+	taxAmount, _, err := s.calculateTaxes(subtotalAmount, req.CompanyID, req.BranchID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate taxes: %v", err)
+	}
+
+	totalAmount := subtotalAmount + taxAmount
+
 	// Create order
 	order := &entity.Order{
-		CompanyID:     req.CompanyID,
-		BranchID:      req.BranchID,
-		CustomerName:  req.CustomerName,
-		CustomerPhone: req.CustomerPhone,
-		TableNumber:   req.TableNumber,
-		Notes:         req.Notes,
-		ReferralCode:  req.ReferralCode,
-		OrderMethod:   req.OrderMethod,
-		PromoCode:     req.PromoCode,
-		Status:        entity.OrderStatusPending,
-		TotalAmount:   totalAmount,
+		CompanyID:      req.CompanyID,
+		BranchID:       req.BranchID,
+		CustomerName:   req.CustomerName,
+		CustomerPhone:  req.CustomerPhone,
+		TableNumber:    req.TableNumber,
+		Notes:          req.Notes,
+		ReferralCode:   req.ReferralCode,
+		OrderMethod:    req.OrderMethod,
+		PromoCode:      req.PromoCode,
+		Status:         entity.OrderStatusPending,
+		SubtotalAmount: subtotalAmount,
+		TaxAmount:      taxAmount,
+		TotalAmount:    totalAmount,
 	}
 
 	if err := s.orderRepo.Create(order); err != nil {
@@ -215,8 +237,8 @@ func (s *orderService) UpdateOrder(id uuid.UUID, req entity.UpdateOrderRequest, 
 			return nil, err
 		}
 
-		// Calculate new total
-		var totalAmount float64
+		// Calculate new subtotal
+		var subtotalAmount float64
 		var orderItems []entity.OrderItem
 
 		for _, item := range req.OrderItems {
@@ -230,7 +252,7 @@ func (s *orderService) UpdateOrder(id uuid.UUID, req entity.UpdateOrderRequest, 
 			}
 
 			subtotal := product.Price * float64(item.Quantity)
-			totalAmount += subtotal
+			subtotalAmount += subtotal
 
 			orderItems = append(orderItems, entity.OrderItem{
 				OrderID:   order.ID,
@@ -241,7 +263,15 @@ func (s *orderService) UpdateOrder(id uuid.UUID, req entity.UpdateOrderRequest, 
 			})
 		}
 
-		order.TotalAmount = totalAmount
+		// Calculate taxes
+		taxAmount, _, err := s.calculateTaxes(subtotalAmount, companyID, branchID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to calculate taxes: %v", err)
+		}
+
+		order.SubtotalAmount = subtotalAmount
+		order.TaxAmount = taxAmount
+		order.TotalAmount = subtotalAmount + taxAmount
 
 		// Create new items
 		if err := s.orderRepo.CreateOrderItems(orderItems); err != nil {
@@ -321,21 +351,64 @@ func (s *orderService) toOrderResponse(order *entity.Order) *entity.OrderRespons
 		})
 	}
 
+	// Calculate tax details for response
+	_, taxDetails, _ := s.calculateTaxes(order.SubtotalAmount, order.CompanyID, order.BranchID)
+
 	return &entity.OrderResponse{
-		ID:            order.ID,
-		CompanyID:     order.CompanyID,
-		BranchID:      order.BranchID,
-		CustomerName:  order.CustomerName,
-		CustomerPhone: order.CustomerPhone,
-		TableNumber:   order.TableNumber,
-		Notes:         order.Notes,
-		ReferralCode:  order.ReferralCode,
-		OrderMethod:   order.OrderMethod,
-		PromoCode:     order.PromoCode,
-		Status:        order.Status,
-		TotalAmount:   order.TotalAmount,
-		OrderItems:    items,
-		CreatedAt:     order.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt:     order.UpdatedAt.Format("2006-01-02 15:04:05"),
+		ID:             order.ID,
+		CompanyID:      order.CompanyID,
+		BranchID:       order.BranchID,
+		CustomerName:   order.CustomerName,
+		CustomerPhone:  order.CustomerPhone,
+		TableNumber:    order.TableNumber,
+		Notes:          order.Notes,
+		ReferralCode:   order.ReferralCode,
+		OrderMethod:    order.OrderMethod,
+		PromoCode:      order.PromoCode,
+		Status:         order.Status,
+		SubtotalAmount: order.SubtotalAmount,
+		TaxAmount:      order.TaxAmount,
+		TotalAmount:    order.TotalAmount,
+		TaxDetails:     taxDetails,
+		OrderItems:     items,
+		CreatedAt:      order.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:      order.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}
+}
+
+// calculateTaxes menghitung pajak bertingkat berdasarkan prioritas
+// Priority 1 = dihitung pertama, Priority 2 = dihitung kedua, dst.
+// Contoh: subtotal 100.000, Service Charge 5% (prioritas 1), PB1 10% (prioritas 2)
+// - Base: 100.000
+// - Service Charge (prioritas 1): 100.000 * 5% = 5.000 -> Total: 105.000
+// - PB1 (prioritas 2): 105.000 * 10% = 10.500 -> Total: 115.500
+func (s *orderService) calculateTaxes(subtotal float64, companyID, branchID uuid.UUID) (float64, []entity.TaxDetailDTO, error) {
+	// Get active taxes ordered by priority ASC (1, 2, 3, ...)
+	taxes, err := s.taxRepo.FindActiveTaxesByBranch(companyID, branchID)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	var taxDetails []entity.TaxDetailDTO
+	var totalTax float64
+	currentAmount := subtotal
+
+	// Calculate taxes in order of priority (1 first, then 2, then 3, ...)
+	for _, tax := range taxes {
+		taxAmount := currentAmount * (tax.Presentase / 100)
+		
+		taxDetails = append(taxDetails, entity.TaxDetailDTO{
+			TaxID:      tax.ID,
+			TaxName:    tax.NamaPajak,
+			Percentage: tax.Presentase,
+			Priority:   tax.Prioritas,
+			BaseAmount: currentAmount,
+			TaxAmount:  taxAmount,
+		})
+
+		totalTax += taxAmount
+		currentAmount += taxAmount // Untuk pajak berikutnya, base-nya adalah amount + pajak sebelumnya
+	}
+
+	return totalTax, taxDetails, nil
 }

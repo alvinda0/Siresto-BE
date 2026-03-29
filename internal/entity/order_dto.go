@@ -43,21 +43,33 @@ type UpdateOrderRequest struct {
 }
 
 type OrderResponse struct {
-	ID            uuid.UUID       `json:"id"`
-	CompanyID     uuid.UUID       `json:"company_id"`
-	BranchID      uuid.UUID       `json:"branch_id"`
-	CustomerName  string          `json:"customer_name"`
-	CustomerPhone string          `json:"customer_phone"`
-	TableNumber   string          `json:"table_number"`
-	Notes         string          `json:"notes"`
-	ReferralCode  string          `json:"referral_code"`
-	OrderMethod   OrderMethod     `json:"order_method"`
-	PromoCode     string          `json:"promo_code"`
-	Status        OrderStatus     `json:"status"`
-	TotalAmount   float64         `json:"total_amount"`
-	OrderItems    []OrderItemDTO  `json:"order_items"`
-	CreatedAt     string          `json:"created_at"`
-	UpdatedAt     string          `json:"updated_at"`
+	ID             uuid.UUID       `json:"id"`
+	CompanyID      uuid.UUID       `json:"company_id"`
+	BranchID       uuid.UUID       `json:"branch_id"`
+	CustomerName   string          `json:"customer_name"`
+	CustomerPhone  string          `json:"customer_phone"`
+	TableNumber    string          `json:"table_number"`
+	Notes          string          `json:"notes"`
+	ReferralCode   string          `json:"referral_code"`
+	OrderMethod    OrderMethod     `json:"order_method"`
+	PromoCode      string          `json:"promo_code"`
+	Status         OrderStatus     `json:"status"`
+	SubtotalAmount float64         `json:"subtotal_amount"` // Total item sebelum pajak
+	TaxAmount      float64         `json:"tax_amount"`      // Total pajak
+	TotalAmount    float64         `json:"total_amount"`    // Subtotal + Tax
+	TaxDetails     []TaxDetailDTO  `json:"tax_details"`     // Detail perhitungan pajak
+	OrderItems     []OrderItemDTO  `json:"order_items"`
+	CreatedAt      string          `json:"created_at"`
+	UpdatedAt      string          `json:"updated_at"`
+}
+
+type TaxDetailDTO struct {
+	TaxID      uuid.UUID `json:"tax_id"`
+	TaxName    string    `json:"tax_name"`
+	Percentage float64   `json:"percentage"`
+	Priority   int       `json:"priority"`
+	BaseAmount float64   `json:"base_amount"` // Jumlah yang dikenakan pajak
+	TaxAmount  float64   `json:"tax_amount"`  // Hasil perhitungan pajak
 }
 
 type OrderItemDTO struct {

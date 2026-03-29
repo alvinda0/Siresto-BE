@@ -38,7 +38,9 @@ type Order struct {
 	OrderMethod    OrderMethod    `gorm:"type:varchar(50);not null" json:"order_method"`
 	PromoCode      string         `gorm:"type:varchar(100)" json:"promo_code"`
 	Status         OrderStatus    `gorm:"type:varchar(50);default:'PENDING'" json:"status"`
-	TotalAmount    float64        `gorm:"type:decimal(15,2);default:0" json:"total_amount"`
+	SubtotalAmount float64        `gorm:"type:decimal(15,2);default:0" json:"subtotal_amount"` // Total item sebelum pajak
+	TaxAmount      float64        `gorm:"type:decimal(15,2);default:0" json:"tax_amount"`      // Total pajak
+	TotalAmount    float64        `gorm:"type:decimal(15,2);default:0" json:"total_amount"`    // Subtotal + Tax
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 	DeletedAt      gorm.DeletedAt `gorm:"index" json:"-"`

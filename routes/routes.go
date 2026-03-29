@@ -41,20 +41,20 @@ func SetupRoutes(r *gin.Engine) {
 	productService := service.NewProductService(productRepo, categoryRepo, branchRepo)
 	productHandler := handler.NewProductHandler(productService)
 
+	// Tax dependencies (needed by order service)
+	taxRepo := repository.NewTaxRepository(config.DB)
+	taxService := service.NewTaxService(taxRepo)
+	taxHandler := handler.NewTaxHandler(taxService)
+
 	// Order dependencies
 	orderRepo := repository.NewOrderRepository(config.DB)
-	orderService := service.NewOrderService(orderRepo, productRepo, branchRepo)
+	orderService := service.NewOrderService(orderRepo, productRepo, branchRepo, taxRepo)
 	orderHandler := handler.NewOrderHandler(orderService)
 
 	// API Log dependencies
 	apiLogRepo := repository.NewAPILogRepository(config.DB)
 	apiLogService := service.NewAPILogService(apiLogRepo)
 	apiLogHandler := handler.NewAPILogHandler(apiLogService)
-
-	// Tax dependencies
-	taxRepo := repository.NewTaxRepository(config.DB)
-	taxService := service.NewTaxService(taxRepo)
-	taxHandler := handler.NewTaxHandler(taxService)
 
 	// Promo dependencies
 	promoRepo := repository.NewPromoRepository(config.DB)

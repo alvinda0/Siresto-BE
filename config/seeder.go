@@ -97,6 +97,14 @@ func SeedDatabase() {
 		log.Printf("✓ Company created: PT Restoran Sejahtera (ID: %s)", company.ID)
 	}
 
+	// Update owner dengan company_id
+	owner.CompanyID = &company.ID
+	if err := DB.Save(&owner).Error; err != nil {
+		log.Printf("Error updating OWNER with company_id: %v", err)
+	} else {
+		log.Printf("✓ OWNER updated with company_id: %s", company.ID)
+	}
+
 	// Buat branch untuk company
 	branch := entity.Branch{
 		CompanyID:  company.ID,

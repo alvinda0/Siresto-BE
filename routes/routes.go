@@ -51,6 +51,11 @@ func SetupRoutes(r *gin.Engine) {
 	apiLogService := service.NewAPILogService(apiLogRepo)
 	apiLogHandler := handler.NewAPILogHandler(apiLogService)
 
+	// Tax dependencies
+	taxRepo := repository.NewTaxRepository(config.DB)
+	taxService := service.NewTaxService(taxRepo)
+	taxHandler := handler.NewTaxHandler(taxService)
+
 	// Apply logging middleware globally
 	r.Use(middleware.LoggingMiddleware(apiLogService))
 
@@ -120,6 +125,13 @@ func SetupRoutes(r *gin.Engine) {
 		external.DELETE("/orders/:id", orderHandler.DeleteOrder)
 		external.GET("/orders/:id", orderHandler.GetOrderByID)
 		external.GET("/orders", orderHandler.GetAllOrders)
+
+		// Tax routes
+		external.POST("/tax", taxHandler.CreateTax)
+		external.PUT("/tax/:id", taxHandler.UpdateTax)
+		external.DELETE("/tax/:id", taxHandler.DeleteTax)
+		external.GET("/tax/:id", taxHandler.GetTaxByID)
+		external.GET("/tax", taxHandler.GetAllTaxes)
 	}
 
 	// ===== WEBSOCKET (separate group for query param auth) =====

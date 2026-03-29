@@ -312,5 +312,53 @@ func MigrateDB() {
 	DB.Exec("CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON order_items(product_id)")
 	DB.Exec("CREATE INDEX IF NOT EXISTS idx_order_items_deleted_at ON order_items(deleted_at)")
 	
+	// Create taxes table
+	if err := DB.Exec(`
+		CREATE TABLE IF NOT EXISTS taxes (
+			id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+			company_id uuid NOT NULL,
+			branch_id uuid,
+			nama_pajak varchar(100) NOT NULL,
+			tipe_pajak varchar(10) NOT NULL,
+			presentase decimal(5,2) NOT NULL,
+			deskripsi text,
+			status varchar(20) DEFAULT 'active',
+			prioritas integer DEFAULT 0,
+			created_at timestamptz DEFAULT NOW(),
+			updated_at timestamptz DEFAULT NOW(),
+			CONSTRAINT fk_taxes_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+			CONSTRAINT fk_taxes_branch FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE
+		)
+	`).Error; err != nil {
+		log.Fatal("Failed to create taxes table:", err)
+	}
+	
+	// Add missing columns if table already exists
+	DB.Exec(`
+		DO $$ 
+		BEGIN
+			IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='taxes' AND column_name='company_id') THEN
+				ALTER TABLE taxes ADD COLUMN company_id uuid;
+				ALTER TABLE taxes ADD CONSTRAINT fk_taxes_company FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
+			END IF;
+			IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='taxes' AND column_name='branch_id') THEN
+				ALTER TABLE taxes ADD COLUMN branch_id uuid;
+				ALTER TABLE taxes ADD CONSTRAINT fk_taxes_branch FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE;
+			END IF;
+			IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='taxes' AND column_name='status') THEN
+				ALTER TABLE taxes ADD COLUMN status varchar(20) DEFAULT 'active';
+			END IF;
+			IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='taxes' AND column_name='prioritas') THEN
+				ALTER TABLE taxes ADD COLUMN prioritas integer DEFAULT 0;
+			END IF;
+		END $$;
+	`)
+	
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_taxes_company_id ON taxes(company_id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_taxes_branch_id ON taxes(branch_id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_taxes_status ON taxes(status)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_taxes_prioritas ON taxes(prioritas)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_taxes_tipe_pajak ON taxes(tipe_pajak)")
+	
 	log.Println("Database migrated successfully")
 }

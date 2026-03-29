@@ -77,3 +77,10 @@ type PromoBundleResponse struct {
 	ProductName string    `json:"product_name"`
 	Quantity    int       `json:"quantity"`
 }
+
+
+type PromoValidationResponse struct {
+	Valid   bool           `json:"valid"`
+	Message string         `json:"message"`
+	Promo   *PromoResponse `json:"promo,omitempty"`
+}

@@ -144,6 +144,7 @@ func SetupRoutes(r *gin.Engine) {
 		external.DELETE("/promos/:id", promoHandler.DeletePromo)
 		external.GET("/promos/:id", promoHandler.GetPromoByID)
 		external.GET("/promos", promoHandler.GetAllPromos)
+		external.GET("/promos/validate/:code", promoHandler.ValidatePromoCode)
 	}
 
 	// ===== WEBSOCKET (separate group for query param auth) =====

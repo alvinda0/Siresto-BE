@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"project-name/internal/entity"
 	"project-name/internal/repository"
 	"time"
@@ -17,6 +18,7 @@ type PromoService interface {
 	GetPromoByID(id, companyID uuid.UUID, branchID *uuid.UUID) (*entity.PromoResponse, error)
 	GetPromoByCode(code string, companyID uuid.UUID, branchID *uuid.UUID) (*entity.PromoResponse, error)
 	GetAllPromos(companyID uuid.UUID, branchID *uuid.UUID, page, limit int) ([]entity.PromoResponse, map[string]interface{}, error)
+	ValidatePromoCode(code string, companyID uuid.UUID, branchID *uuid.UUID) (*entity.PromoValidationResponse, error)
 }
 
 type promoService struct {
@@ -376,4 +378,63 @@ func (s *promoService) toResponse(promo *entity.Promo) *entity.PromoResponse {
 	}
 
 	return response
+}
+
+
+func (s *promoService) ValidatePromoCode(code string, companyID uuid.UUID, branchID *uuid.UUID) (*entity.PromoValidationResponse, error) {
+	promo, err := s.promoRepo.FindByCode(code, companyID, branchID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &entity.PromoValidationResponse{
+				Valid:   false,
+				Message: "Promo code not found",
+			}, nil
+		}
+		return nil, err
+	}
+
+	now := time.Now()
+	
+	// Check if promo is active
+	if !promo.IsActive {
+		return &entity.PromoValidationResponse{
+			Valid:   false,
+			Message: "Promo is not active",
+			Promo:   s.toResponse(promo),
+		}, nil
+	}
+
+	// Check if promo has started
+	if now.Before(promo.StartDate) {
+		return &entity.PromoValidationResponse{
+			Valid:   false,
+			Message: fmt.Sprintf("Promo will start on %s", promo.StartDate.Format("2006-01-02")),
+			Promo:   s.toResponse(promo),
+		}, nil
+	}
+
+	// Check if promo has expired
+	if now.After(promo.EndDate) {
+		return &entity.PromoValidationResponse{
+			Valid:   false,
+			Message: fmt.Sprintf("Promo expired on %s", promo.EndDate.Format("2006-01-02")),
+			Promo:   s.toResponse(promo),
+		}, nil
+	}
+
+	// Check quota
+	if promo.Quota != nil && promo.UsedCount >= *promo.Quota {
+		return &entity.PromoValidationResponse{
+			Valid:   false,
+			Message: "Promo quota has been exhausted",
+			Promo:   s.toResponse(promo),
+		}, nil
+	}
+
+	// Promo is valid
+	return &entity.PromoValidationResponse{
+		Valid:   true,
+		Message: "Promo is valid and can be used",
+		Promo:   s.toResponse(promo),
+	}, nil
 }

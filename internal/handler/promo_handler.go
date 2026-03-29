@@ -304,3 +304,48 @@ func (h *PromoHandler) GetAllPromos(c *gin.Context) {
 
 	pkg.SuccessResponseWithMeta(c, http.StatusOK, "Promos retrieved successfully", promos, meta)
 }
+
+
+// ValidatePromoCode godoc
+// @Summary Validate promo code
+// @Description Check if a promo code is valid and can be used
+// @Tags Promo
+// @Produce json
+// @Param code path string true "Promo Code"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/external/promos/validate/{code} [get]
+func (h *PromoHandler) ValidatePromoCode(c *gin.Context) {
+	companyID, exists := c.Get("company_id")
+	if !exists {
+		pkg.ErrorResponse(c, http.StatusUnauthorized, "Unauthorized", "Company ID not found in context")
+		return
+	}
+
+	branchIDVal, _ := c.Get("branch_id")
+	var branchID *uuid.UUID
+	if branchIDVal != nil {
+		if bid, ok := branchIDVal.(uuid.UUID); ok {
+			branchID = &bid
+		}
+	}
+
+	code := c.Param("code")
+	if code == "" {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Invalid request", "Promo code is required")
+		return
+	}
+
+	validation, err := h.promoService.ValidatePromoCode(code, companyID.(uuid.UUID), branchID)
+	if err != nil {
+		pkg.ErrorResponse(c, http.StatusInternalServerError, "Failed to validate promo", err.Error())
+		return
+	}
+
+	if validation.Valid {
+		pkg.SuccessResponse(c, http.StatusOK, validation.Message, validation)
+	} else {
+		pkg.SuccessResponse(c, http.StatusOK, validation.Message, validation)
+	}
+}

@@ -46,20 +46,20 @@ func SetupRoutes(r *gin.Engine) {
 	taxService := service.NewTaxService(taxRepo)
 	taxHandler := handler.NewTaxHandler(taxService)
 
+	// Promo dependencies (needed by order service)
+	promoRepo := repository.NewPromoRepository(config.DB)
+	promoService := service.NewPromoService(promoRepo)
+	promoHandler := handler.NewPromoHandler(promoService)
+
 	// Order dependencies
 	orderRepo := repository.NewOrderRepository(config.DB)
-	orderService := service.NewOrderService(orderRepo, productRepo, branchRepo, taxRepo)
+	orderService := service.NewOrderService(orderRepo, productRepo, branchRepo, taxRepo, promoRepo)
 	orderHandler := handler.NewOrderHandler(orderService)
 
 	// API Log dependencies
 	apiLogRepo := repository.NewAPILogRepository(config.DB)
 	apiLogService := service.NewAPILogService(apiLogRepo)
 	apiLogHandler := handler.NewAPILogHandler(apiLogService)
-
-	// Promo dependencies
-	promoRepo := repository.NewPromoRepository(config.DB)
-	promoService := service.NewPromoService(promoRepo)
-	promoHandler := handler.NewPromoHandler(promoService)
 
 	// Apply logging middleware globally
 	r.Use(middleware.LoggingMiddleware(apiLogService))

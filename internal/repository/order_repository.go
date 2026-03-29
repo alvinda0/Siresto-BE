@@ -51,6 +51,7 @@ func (r *orderRepository) FindByID(id uuid.UUID) (*entity.Order, error) {
 	err := r.db.Preload("OrderItems.Product").
 		Preload("Company").
 		Preload("Branch").
+		Preload("Promo").
 		First(&order, "id = ?", id).Error
 	if err != nil {
 		return nil, err
@@ -104,6 +105,7 @@ func (r *orderRepository) FindAll(companyID, branchID *uuid.UUID, status, method
 	err := query.Preload("OrderItems.Product").
 		Preload("Company").
 		Preload("Branch").
+		Preload("Promo").
 		Order("created_at DESC").
 		Limit(pagination.Limit).
 		Offset(offset).

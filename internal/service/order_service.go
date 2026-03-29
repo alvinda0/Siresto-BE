@@ -6,6 +6,7 @@ import (
 	"project-name/internal/entity"
 	"project-name/internal/repository"
 	"project-name/pkg"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -24,14 +25,16 @@ type orderService struct {
 	productRepo repository.ProductRepository
 	branchRepo  repository.BranchRepository
 	taxRepo     repository.TaxRepository
+	promoRepo   repository.PromoRepository
 }
 
-func NewOrderService(orderRepo repository.OrderRepository, productRepo repository.ProductRepository, branchRepo repository.BranchRepository, taxRepo repository.TaxRepository) OrderService {
+func NewOrderService(orderRepo repository.OrderRepository, productRepo repository.ProductRepository, branchRepo repository.BranchRepository, taxRepo repository.TaxRepository, promoRepo repository.PromoRepository) OrderService {
 	return &orderService{
 		orderRepo:   orderRepo,
 		productRepo: productRepo,
 		branchRepo:  branchRepo,
 		taxRepo:     taxRepo,
+		promoRepo:   promoRepo,
 	}
 }
 
@@ -75,13 +78,26 @@ func (s *orderService) CreateOrder(req entity.CreateOrderRequest, companyID, bra
 		})
 	}
 
-	// Calculate taxes
-	taxAmount, _, err := s.calculateTaxes(subtotalAmount, companyID, branchID)
+	// Apply promo if provided
+	var discountAmount float64
+	var promoID *uuid.UUID
+	if req.PromoCode != "" {
+		discount, pID, err := s.applyPromo(req.PromoCode, subtotalAmount, companyID, branchID)
+		if err != nil {
+			return nil, fmt.Errorf("promo error: %v", err)
+		}
+		discountAmount = discount
+		promoID = pID
+	}
+
+	// Calculate taxes based on (subtotal - discount)
+	amountAfterDiscount := subtotalAmount - discountAmount
+	taxAmount, _, err := s.calculateTaxes(amountAfterDiscount, companyID, branchID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate taxes: %v", err)
 	}
 
-	totalAmount := subtotalAmount + taxAmount
+	totalAmount := amountAfterDiscount + taxAmount
 
 	// Create order
 	order := &entity.Order{
@@ -93,7 +109,9 @@ func (s *orderService) CreateOrder(req entity.CreateOrderRequest, companyID, bra
 		Notes:          req.Notes,
 		ReferralCode:   req.ReferralCode,
 		OrderMethod:    req.OrderMethod,
+		PromoID:        promoID,
 		PromoCode:      req.PromoCode,
+		DiscountAmount: discountAmount,
 		Status:         entity.OrderStatusPending,
 		SubtotalAmount: subtotalAmount,
 		TaxAmount:      taxAmount,
@@ -157,13 +175,26 @@ func (s *orderService) CreatePublicOrder(req entity.CreatePublicOrderRequest) (*
 		})
 	}
 
-	// Calculate taxes
-	taxAmount, _, err := s.calculateTaxes(subtotalAmount, req.CompanyID, req.BranchID)
+	// Apply promo if provided
+	var discountAmount float64
+	var promoID *uuid.UUID
+	if req.PromoCode != "" {
+		discount, pID, err := s.applyPromo(req.PromoCode, subtotalAmount, req.CompanyID, req.BranchID)
+		if err != nil {
+			return nil, fmt.Errorf("promo error: %v", err)
+		}
+		discountAmount = discount
+		promoID = pID
+	}
+
+	// Calculate taxes based on (subtotal - discount)
+	amountAfterDiscount := subtotalAmount - discountAmount
+	taxAmount, _, err := s.calculateTaxes(amountAfterDiscount, req.CompanyID, req.BranchID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate taxes: %v", err)
 	}
 
-	totalAmount := subtotalAmount + taxAmount
+	totalAmount := amountAfterDiscount + taxAmount
 
 	// Create order
 	order := &entity.Order{
@@ -175,7 +206,9 @@ func (s *orderService) CreatePublicOrder(req entity.CreatePublicOrderRequest) (*
 		Notes:          req.Notes,
 		ReferralCode:   req.ReferralCode,
 		OrderMethod:    req.OrderMethod,
+		PromoID:        promoID,
 		PromoCode:      req.PromoCode,
+		DiscountAmount: discountAmount,
 		Status:         entity.OrderStatusPending,
 		SubtotalAmount: subtotalAmount,
 		TaxAmount:      taxAmount,
@@ -263,15 +296,31 @@ func (s *orderService) UpdateOrder(id uuid.UUID, req entity.UpdateOrderRequest, 
 			})
 		}
 
-		// Calculate taxes
-		taxAmount, _, err := s.calculateTaxes(subtotalAmount, companyID, branchID)
+		// Apply promo if exists
+		var discountAmount float64
+		if order.PromoCode != "" {
+			discount, _, err := s.applyPromo(order.PromoCode, subtotalAmount, companyID, branchID)
+			if err != nil {
+				// If promo is no longer valid, remove it
+				order.PromoCode = ""
+				order.PromoID = nil
+				discountAmount = 0
+			} else {
+				discountAmount = discount
+			}
+		}
+
+		// Calculate taxes based on (subtotal - discount)
+		amountAfterDiscount := subtotalAmount - discountAmount
+		taxAmount, _, err := s.calculateTaxes(amountAfterDiscount, companyID, branchID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to calculate taxes: %v", err)
 		}
 
 		order.SubtotalAmount = subtotalAmount
+		order.DiscountAmount = discountAmount
 		order.TaxAmount = taxAmount
-		order.TotalAmount = subtotalAmount + taxAmount
+		order.TotalAmount = amountAfterDiscount + taxAmount
 
 		// Create new items
 		if err := s.orderRepo.CreateOrderItems(orderItems); err != nil {
@@ -352,7 +401,23 @@ func (s *orderService) toOrderResponse(order *entity.Order) *entity.OrderRespons
 	}
 
 	// Calculate tax details for response
-	_, taxDetails, _ := s.calculateTaxes(order.SubtotalAmount, order.CompanyID, order.BranchID)
+	amountAfterDiscount := order.SubtotalAmount - order.DiscountAmount
+	_, taxDetails, _ := s.calculateTaxes(amountAfterDiscount, order.CompanyID, order.BranchID)
+
+	// Get promo details if promo was used
+	var promoDetails *entity.PromoDetailDTO
+	if order.PromoID != nil && order.Promo != nil {
+		promoDetails = &entity.PromoDetailDTO{
+			PromoID:        order.Promo.ID,
+			PromoName:      order.Promo.Name,
+			PromoCode:      order.Promo.Code,
+			PromoType:      order.Promo.Type,
+			PromoValue:     order.Promo.Value,
+			DiscountAmount: order.DiscountAmount,
+			MaxDiscount:    order.Promo.MaxDiscount,
+			MinTransaction: order.Promo.MinTransaction,
+		}
+	}
 
 	return &entity.OrderResponse{
 		ID:             order.ID,
@@ -365,6 +430,9 @@ func (s *orderService) toOrderResponse(order *entity.Order) *entity.OrderRespons
 		ReferralCode:   order.ReferralCode,
 		OrderMethod:    order.OrderMethod,
 		PromoCode:      order.PromoCode,
+		PromoID:        order.PromoID,
+		DiscountAmount: order.DiscountAmount,
+		PromoDetails:   promoDetails,
 		Status:         order.Status,
 		SubtotalAmount: order.SubtotalAmount,
 		TaxAmount:      order.TaxAmount,
@@ -411,4 +479,63 @@ func (s *orderService) calculateTaxes(subtotal float64, companyID, branchID uuid
 	}
 
 	return totalTax, taxDetails, nil
+}
+
+// applyPromo validates and calculates discount from promo code
+func (s *orderService) applyPromo(promoCode string, subtotal float64, companyID, branchID uuid.UUID) (float64, *uuid.UUID, error) {
+	// Find promo by code
+	promo, err := s.promoRepo.FindByCode(promoCode, companyID, &branchID)
+	if err != nil {
+		return 0, nil, errors.New("promo code not found")
+	}
+
+	// Validate promo is active
+	if !promo.IsActive {
+		return 0, nil, errors.New("promo is not active")
+	}
+
+	// Validate promo date range
+	now := time.Now()
+	if now.Before(promo.StartDate) {
+		return 0, nil, errors.New("promo has not started yet")
+	}
+	if now.After(promo.EndDate) {
+		return 0, nil, errors.New("promo has expired")
+	}
+
+	// Validate quota
+	if promo.Quota != nil && promo.UsedCount >= *promo.Quota {
+		return 0, nil, errors.New("promo quota has been exhausted")
+	}
+
+	// Validate minimum transaction
+	if promo.MinTransaction != nil && subtotal < *promo.MinTransaction {
+		return 0, nil, fmt.Errorf("minimum transaction is %.2f", *promo.MinTransaction)
+	}
+
+	// Calculate discount
+	var discount float64
+	if promo.Type == "percentage" {
+		discount = subtotal * (promo.Value / 100)
+		// Apply max discount if set
+		if promo.MaxDiscount != nil && discount > *promo.MaxDiscount {
+			discount = *promo.MaxDiscount
+		}
+	} else if promo.Type == "fixed" {
+		discount = promo.Value
+		// Discount cannot exceed subtotal
+		if discount > subtotal {
+			discount = subtotal
+		}
+	} else {
+		return 0, nil, errors.New("invalid promo type")
+	}
+
+	// Increment used count
+	promo.UsedCount++
+	if err := s.promoRepo.Update(promo); err != nil {
+		return 0, nil, fmt.Errorf("failed to update promo usage: %v", err)
+	}
+
+	return discount, &promo.ID, nil
 }

@@ -53,10 +53,13 @@ type OrderResponse struct {
 	ReferralCode   string          `json:"referral_code"`
 	OrderMethod    OrderMethod     `json:"order_method"`
 	PromoCode      string          `json:"promo_code"`
+	PromoID        *uuid.UUID      `json:"promo_id"`
+	DiscountAmount float64         `json:"discount_amount"`
+	PromoDetails   *PromoDetailDTO `json:"promo_details,omitempty"` // Detail promo yang digunakan
 	Status         OrderStatus     `json:"status"`
-	SubtotalAmount float64         `json:"subtotal_amount"` // Total item sebelum pajak
+	SubtotalAmount float64         `json:"subtotal_amount"` // Total item sebelum diskon & pajak
 	TaxAmount      float64         `json:"tax_amount"`      // Total pajak
-	TotalAmount    float64         `json:"total_amount"`    // Subtotal + Tax
+	TotalAmount    float64         `json:"total_amount"`    // (Subtotal - Diskon) + Tax
 	TaxDetails     []TaxDetailDTO  `json:"tax_details"`     // Detail perhitungan pajak
 	OrderItems     []OrderItemDTO  `json:"order_items"`
 	CreatedAt      string          `json:"created_at"`
@@ -80,4 +83,15 @@ type OrderItemDTO struct {
 	Price       float64      `json:"price"`
 	Subtotal    float64      `json:"subtotal"`
 	Note        string       `json:"note"`
+}
+
+type PromoDetailDTO struct {
+	PromoID        uuid.UUID `json:"promo_id"`
+	PromoName      string    `json:"promo_name"`
+	PromoCode      string    `json:"promo_code"`
+	PromoType      string    `json:"promo_type"`       // percentage atau fixed
+	PromoValue     float64   `json:"promo_value"`      // nilai promo (% atau nominal)
+	DiscountAmount float64   `json:"discount_amount"`  // jumlah diskon yang didapat
+	MaxDiscount    *float64  `json:"max_discount"`     // maksimal diskon (untuk percentage)
+	MinTransaction *float64  `json:"min_transaction"`  // minimum transaksi
 }

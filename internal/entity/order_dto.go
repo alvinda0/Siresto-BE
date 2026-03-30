@@ -54,6 +54,10 @@ type UpdateOrderRequest struct {
 	OrderItems    []OrderItemInput `json:"order_items"`
 }
 
+type UpdateOrderStatusRequest struct {
+	Status OrderStatus `json:"status" binding:"required"`
+}
+
 type OrderResponse struct {
 	ID             uuid.UUID       `json:"id"`
 	CompanyID      uuid.UUID       `json:"company_id"`

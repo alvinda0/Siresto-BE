@@ -14,6 +14,7 @@ type OrderRepository interface {
 	CreateOrderItems(items []entity.OrderItem) error
 	UpdateOrderItem(item *entity.OrderItem) error
 	Update(order *entity.Order) error
+	UpdateStatus(id uuid.UUID, status entity.OrderStatus) error
 	Delete(id uuid.UUID) error
 	FindByID(id uuid.UUID) (*entity.Order, error)
 	FindAll(companyID, branchID *uuid.UUID, status, method, customer, orderID string, pagination pkg.PaginationParams) ([]entity.Order, int64, error)
@@ -61,6 +62,10 @@ func (r *orderRepository) Update(order *entity.Order) error {
 		"tax_amount":      order.TaxAmount,
 		"total_amount":    order.TotalAmount,
 	}).Error
+}
+
+func (r *orderRepository) UpdateStatus(id uuid.UUID, status entity.OrderStatus) error {
+	return r.db.Model(&entity.Order{}).Where("id = ?", id).Update("status", status).Error
 }
 
 func (r *orderRepository) Delete(id uuid.UUID) error {

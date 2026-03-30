@@ -18,12 +18,12 @@ const (
 type OrderStatus string
 
 const (
-	OrderStatusPending   OrderStatus = "PENDING"
-	OrderStatusConfirmed OrderStatus = "CONFIRMED"
-	OrderStatusPreparing OrderStatus = "PREPARING"
-	OrderStatusReady     OrderStatus = "READY"
-	OrderStatusCompleted OrderStatus = "COMPLETED"
-	OrderStatusCancelled OrderStatus = "CANCELLED"
+	OrderStatusPending    OrderStatus = "PENDING"
+	OrderStatusConfirmed  OrderStatus = "CONFIRMED"
+	OrderStatusProcessing OrderStatus = "PROCESSING"
+	OrderStatusReady      OrderStatus = "READY"
+	OrderStatusCompleted  OrderStatus = "COMPLETED"
+	OrderStatusCancelled  OrderStatus = "CANCELLED"
 )
 
 type Order struct {

@@ -205,6 +205,44 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 	pkg.SuccessResponse(c, http.StatusOK, "Order updated successfully", order)
 }
 
+// UpdateOrderStatus godoc
+// @Summary Update order status
+// @Tags Orders
+// @Accept json
+// @Produce json
+// @Param id path string true "Order ID"
+// @Param status body entity.UpdateOrderStatusRequest true "Status data"
+// @Success 200 {object} pkg.Response{data=entity.OrderResponse}
+// @Router /api/v1/orders/{id}/status [patch]
+func (h *OrderHandler) UpdateOrderStatus(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Invalid order ID", err.Error())
+		return
+	}
+
+	var req entity.UpdateOrderStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Invalid request body", err.Error())
+		return
+	}
+
+	companyID, _ := c.Get("company_id")
+	branchID, _ := c.Get("branch_id")
+
+	order, err := h.orderService.UpdateOrderStatus(id, req, companyID.(uuid.UUID), branchID.(uuid.UUID))
+	if err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Failed to update order status", err.Error())
+		return
+	}
+
+	// Broadcast to WebSocket clients
+	hub := websocket.GetHub()
+	hub.BroadcastOrderUpdate("status_updated", order, order.CompanyID, order.BranchID)
+
+	pkg.SuccessResponse(c, http.StatusOK, "Order status updated successfully", order)
+}
+
 // DeleteOrder godoc
 // @Summary Delete an order
 // @Tags Orders

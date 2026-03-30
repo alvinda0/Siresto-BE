@@ -17,6 +17,7 @@ type OrderService interface {
 	AddOrderItem(orderID uuid.UUID, req entity.AddOrderItemRequest, companyID, branchID uuid.UUID) (*entity.OrderResponse, error)
 	CreatePublicOrder(req entity.CreatePublicOrderRequest) (*entity.OrderResponse, error)
 	UpdateOrder(id uuid.UUID, req entity.UpdateOrderRequest, companyID, branchID uuid.UUID) (*entity.OrderResponse, error)
+	UpdateOrderStatus(id uuid.UUID, req entity.UpdateOrderStatusRequest, companyID, branchID uuid.UUID) (*entity.OrderResponse, error)
 	DeleteOrder(id uuid.UUID, companyID, branchID uuid.UUID) error
 	GetOrderByID(id uuid.UUID, companyID, branchID *uuid.UUID) (*entity.OrderResponse, error)
 	GetAllOrders(companyID, branchID *uuid.UUID, status, method, customer, orderID string, pagination pkg.PaginationParams) ([]entity.OrderResponse, *pkg.PaginationMeta, error)
@@ -524,6 +525,29 @@ func (s *orderService) UpdateOrder(id uuid.UUID, req entity.UpdateOrderRequest, 
 	}
 
 	return s.GetOrderByID(order.ID, &companyID, &branchID)
+}
+
+func (s *orderService) UpdateOrderStatus(id uuid.UUID, req entity.UpdateOrderStatusRequest, companyID, branchID uuid.UUID) (*entity.OrderResponse, error) {
+	// Find existing order
+	order, err := s.orderRepo.FindByID(id)
+	if err != nil {
+		return nil, errors.New("order not found")
+	}
+
+	if order.CompanyID != companyID || order.BranchID != branchID {
+		return nil, errors.New("unauthorized to update this order")
+	}
+
+	// Validate status transition (optional - add business rules here)
+	// For example: PENDING -> PREPARING -> READY -> COMPLETED
+	// You can add validation logic here if needed
+
+	// Update status
+	if err := s.orderRepo.UpdateStatus(id, req.Status); err != nil {
+		return nil, err
+	}
+
+	return s.GetOrderByID(id, &companyID, &branchID)
 }
 
 func (s *orderService) DeleteOrder(id uuid.UUID, companyID, branchID uuid.UUID) error {

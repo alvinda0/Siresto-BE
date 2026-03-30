@@ -336,3 +336,41 @@ func (h *OrderHandler) GetAllOrders(c *gin.Context) {
 
 	pkg.SuccessResponseWithMeta(c, http.StatusOK, "Orders retrieved successfully", orders, meta)
 }
+
+// ProcessPayment godoc
+// @Summary Process payment for an order
+// @Tags Orders
+// @Accept json
+// @Produce json
+// @Param id path string true "Order ID"
+// @Param payment body entity.ProcessPaymentRequest true "Payment data"
+// @Success 200 {object} pkg.Response{data=entity.PaymentResponse}
+// @Router /api/v1/orders/{id}/payment [post]
+func (h *OrderHandler) ProcessPayment(c *gin.Context) {
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Invalid order ID", err.Error())
+		return
+	}
+
+	var req entity.ProcessPaymentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Invalid request body", err.Error())
+		return
+	}
+
+	companyID, _ := c.Get("company_id")
+	branchID, _ := c.Get("branch_id")
+
+	payment, err := h.orderService.ProcessPayment(orderID, req, companyID.(uuid.UUID), branchID.(uuid.UUID))
+	if err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Failed to process payment", err.Error())
+		return
+	}
+
+	// Broadcast to WebSocket clients
+	hub := websocket.GetHub()
+	hub.BroadcastOrderUpdate("payment_completed", payment, companyID.(uuid.UUID), branchID.(uuid.UUID))
+
+	pkg.SuccessResponse(c, http.StatusOK, "Payment processed successfully", payment)
+}

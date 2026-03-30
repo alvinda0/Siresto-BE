@@ -26,6 +26,26 @@ const (
 	OrderStatusCancelled  OrderStatus = "CANCELLED"
 )
 
+type PaymentMethod string
+
+const (
+	PaymentMethodQRIS          PaymentMethod = "QRIS"
+	PaymentMethodCash          PaymentMethod = "TUNAI"
+	PaymentMethodDebit         PaymentMethod = "DEBIT"
+	PaymentMethodCredit        PaymentMethod = "CREDIT"
+	PaymentMethodGoPay         PaymentMethod = "GOPAY"
+	PaymentMethodOVO           PaymentMethod = "OVO"
+	PaymentMethodComplimentary PaymentMethod = "COMPLIMENTARY"
+)
+
+type PaymentStatus string
+
+const (
+	PaymentStatusUnpaid  PaymentStatus = "UNPAID"
+	PaymentStatusPaid    PaymentStatus = "PAID"
+	PaymentStatusPartial PaymentStatus = "PARTIAL"
+)
+
 type Order struct {
 	ID             uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	CompanyID      uuid.UUID      `gorm:"type:uuid;not null;index" json:"company_id"`
@@ -43,6 +63,12 @@ type Order struct {
 	SubtotalAmount float64        `gorm:"type:decimal(15,2);default:0" json:"subtotal_amount"` // Total item sebelum diskon & pajak
 	TaxAmount      float64        `gorm:"type:decimal(15,2);default:0" json:"tax_amount"`      // Total pajak
 	TotalAmount    float64        `gorm:"type:decimal(15,2);default:0" json:"total_amount"`    // (Subtotal - Diskon) + Tax
+	PaymentMethod  PaymentMethod  `gorm:"type:varchar(50)" json:"payment_method"`              // Metode pembayaran
+	PaymentStatus  PaymentStatus  `gorm:"type:varchar(50);default:'UNPAID'" json:"payment_status"` // Status pembayaran
+	PaidAmount     float64        `gorm:"type:decimal(15,2);default:0" json:"paid_amount"`     // Jumlah yang sudah dibayar
+	ChangeAmount   float64        `gorm:"type:decimal(15,2);default:0" json:"change_amount"`   // Kembalian (untuk TUNAI)
+	PaymentNote    string         `gorm:"type:text" json:"payment_note"`                       // Catatan pembayaran
+	PaidAt         *time.Time     `json:"paid_at"`                                             // Waktu pembayaran
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 	DeletedAt      gorm.DeletedAt `gorm:"index" json:"-"`

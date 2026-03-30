@@ -59,27 +59,33 @@ type UpdateOrderStatusRequest struct {
 }
 
 type OrderResponse struct {
-	ID             uuid.UUID       `json:"id"`
-	CompanyID      uuid.UUID       `json:"company_id"`
-	BranchID       uuid.UUID       `json:"branch_id"`
-	CustomerName   string          `json:"customer_name"`
-	CustomerPhone  string          `json:"customer_phone"`
-	TableNumber    string          `json:"table_number"`
-	Notes          string          `json:"notes"`
-	ReferralCode   string          `json:"referral_code"`
-	OrderMethod    OrderMethod     `json:"order_method"`
-	PromoCode      string          `json:"promo_code"`
-	PromoID        *uuid.UUID      `json:"promo_id"`
-	DiscountAmount float64         `json:"discount_amount"`
-	PromoDetails   *PromoDetailDTO `json:"promo_details,omitempty"` // Detail promo yang digunakan
-	Status         OrderStatus     `json:"status"`
-	SubtotalAmount float64         `json:"subtotal_amount"` // Total item sebelum diskon & pajak
-	TaxAmount      float64         `json:"tax_amount"`      // Total pajak
-	TotalAmount    float64         `json:"total_amount"`    // (Subtotal - Diskon) + Tax
-	TaxDetails     []TaxDetailDTO  `json:"tax_details"`     // Detail perhitungan pajak
-	OrderItems     []OrderItemDTO  `json:"order_items"`
-	CreatedAt      string          `json:"created_at"`
-	UpdatedAt      string          `json:"updated_at"`
+	ID             uuid.UUID        `json:"id"`
+	CompanyID      uuid.UUID        `json:"company_id"`
+	BranchID       uuid.UUID        `json:"branch_id"`
+	CustomerName   string           `json:"customer_name"`
+	CustomerPhone  string           `json:"customer_phone"`
+	TableNumber    string           `json:"table_number"`
+	Notes          string           `json:"notes"`
+	ReferralCode   string           `json:"referral_code"`
+	OrderMethod    OrderMethod      `json:"order_method"`
+	PromoCode      string           `json:"promo_code"`       // Comma-separated promo codes
+	PromoID        *uuid.UUID       `json:"promo_id"`
+	DiscountAmount float64          `json:"discount_amount"`  // Total discount dari semua promo
+	PromoDetails   []PromoDetailDTO `json:"promo_details,omitempty"` // Detail semua promo yang digunakan
+	Status         OrderStatus      `json:"status"`
+	SubtotalAmount float64          `json:"subtotal_amount"` // Total item sebelum diskon & pajak
+	TaxAmount      float64          `json:"tax_amount"`      // Total pajak
+	TotalAmount    float64          `json:"total_amount"`    // (Subtotal - Diskon) + Tax
+	PaymentMethod  PaymentMethod    `json:"payment_method"`
+	PaymentStatus  PaymentStatus    `json:"payment_status"`
+	PaidAmount     float64          `json:"paid_amount"`
+	ChangeAmount   float64          `json:"change_amount"`
+	PaymentNote    string           `json:"payment_note"`
+	PaidAt         string           `json:"paid_at"`
+	TaxDetails     []TaxDetailDTO   `json:"tax_details"`     // Detail perhitungan pajak
+	OrderItems     []OrderItemDTO   `json:"order_items"`
+	CreatedAt      string           `json:"created_at"`
+	UpdatedAt      string           `json:"updated_at"`
 }
 
 type TaxDetailDTO struct {
@@ -110,4 +116,27 @@ type PromoDetailDTO struct {
 	DiscountAmount float64   `json:"discount_amount"`  // jumlah diskon yang didapat
 	MaxDiscount    *float64  `json:"max_discount"`     // maksimal diskon (untuk percentage)
 	MinTransaction *float64  `json:"min_transaction"`  // minimum transaksi
+}
+
+type ProcessPaymentRequest struct {
+	PaymentMethod PaymentMethod `json:"payment_method" binding:"required"`
+	PaidAmount    float64       `json:"paid_amount" binding:"required,gt=0"`
+	PromoCode     string        `json:"promo_code"` // Opsional: apply promo saat payment
+	PaymentNote   string        `json:"payment_note"`
+}
+
+type PaymentResponse struct {
+	OrderID        uuid.UUID        `json:"order_id"`
+	PaymentMethod  PaymentMethod    `json:"payment_method"`
+	PaymentStatus  PaymentStatus    `json:"payment_status"`
+	SubtotalAmount float64          `json:"subtotal_amount"`
+	DiscountAmount float64          `json:"discount_amount"`
+	TaxAmount      float64          `json:"tax_amount"`
+	TotalAmount    float64          `json:"total_amount"`
+	PaidAmount     float64          `json:"paid_amount"`
+	ChangeAmount   float64          `json:"change_amount"`
+	PaymentNote    string           `json:"payment_note"`
+	PaidAt         string           `json:"paid_at"`
+	PromoDetails   []PromoDetailDTO `json:"promo_details,omitempty"` // Detail semua promo
+	TaxDetails     []TaxDetailDTO   `json:"tax_details"`
 }

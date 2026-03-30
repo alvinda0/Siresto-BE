@@ -61,6 +61,12 @@ func (r *orderRepository) Update(order *entity.Order) error {
 		"subtotal_amount": order.SubtotalAmount,
 		"tax_amount":      order.TaxAmount,
 		"total_amount":    order.TotalAmount,
+		"payment_method":  order.PaymentMethod,
+		"payment_status":  order.PaymentStatus,
+		"paid_amount":     order.PaidAmount,
+		"change_amount":   order.ChangeAmount,
+		"payment_note":    order.PaymentNote,
+		"paid_at":         order.PaidAt,
 	}).Error
 }
 

@@ -130,6 +130,7 @@ func SetupRoutes(r *gin.Engine) {
 		external.POST("/orders/quick/:id", orderHandler.AddOrderItem)
 		external.PUT("/orders/:id", orderHandler.UpdateOrder)
 		external.PATCH("/orders/:id/status", orderHandler.UpdateOrderStatus)
+		external.POST("/orders/:id/payment", orderHandler.ProcessPayment)
 		external.DELETE("/orders/:id", orderHandler.DeleteOrder)
 		external.GET("/orders/:id", orderHandler.GetOrderByID)
 		external.GET("/orders", orderHandler.GetAllOrders)

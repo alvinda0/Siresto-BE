@@ -6,6 +6,7 @@ import (
 	"project-name/internal/entity"
 	"project-name/internal/repository"
 	"project-name/pkg"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,6 +19,7 @@ type OrderService interface {
 	CreatePublicOrder(req entity.CreatePublicOrderRequest) (*entity.OrderResponse, error)
 	UpdateOrder(id uuid.UUID, req entity.UpdateOrderRequest, companyID, branchID uuid.UUID) (*entity.OrderResponse, error)
 	UpdateOrderStatus(id uuid.UUID, req entity.UpdateOrderStatusRequest, companyID, branchID uuid.UUID) (*entity.OrderResponse, error)
+	ProcessPayment(orderID uuid.UUID, req entity.ProcessPaymentRequest, companyID, branchID uuid.UUID) (*entity.PaymentResponse, error)
 	DeleteOrder(id uuid.UUID, companyID, branchID uuid.UUID) error
 	GetOrderByID(id uuid.UUID, companyID, branchID *uuid.UUID) (*entity.OrderResponse, error)
 	GetAllOrders(companyID, branchID *uuid.UUID, status, method, customer, orderID string, pagination pkg.PaginationParams) ([]entity.OrderResponse, *pkg.PaginationMeta, error)
@@ -620,18 +622,33 @@ func (s *orderService) toOrderResponse(order *entity.Order) *entity.OrderRespons
 	_, taxDetails, _ := s.calculateTaxes(amountAfterDiscount, order.CompanyID, order.BranchID)
 
 	// Get promo details if promo was used
-	var promoDetails *entity.PromoDetailDTO
-	if order.PromoID != nil && order.Promo != nil {
-		promoDetails = &entity.PromoDetailDTO{
-			PromoID:        order.Promo.ID,
-			PromoName:      order.Promo.Name,
-			PromoCode:      order.Promo.Code,
-			PromoType:      order.Promo.Type,
-			PromoValue:     order.Promo.Value,
-			DiscountAmount: order.DiscountAmount,
-			MaxDiscount:    order.Promo.MaxDiscount,
-			MinTransaction: order.Promo.MinTransaction,
+	var promoDetailsList []entity.PromoDetailDTO
+	if order.PromoCode != "" {
+		promoCodes := strings.Split(order.PromoCode, ",")
+		for _, code := range promoCodes {
+			code = strings.TrimSpace(code)
+			if code != "" {
+				// Fetch promo details by code
+				promo, err := s.promoRepo.FindByCode(code, order.CompanyID, &order.BranchID)
+				if err == nil {
+					promoDetailsList = append(promoDetailsList, entity.PromoDetailDTO{
+						PromoID:        promo.ID,
+						PromoName:      promo.Name,
+						PromoCode:      promo.Code,
+						PromoType:      promo.Type,
+						PromoValue:     promo.Value,
+						DiscountAmount: 0, // We'll calculate individual discount later if needed
+						MaxDiscount:    promo.MaxDiscount,
+						MinTransaction: promo.MinTransaction,
+					})
+				}
+			}
 		}
+	}
+
+	paidAtStr := ""
+	if order.PaidAt != nil {
+		paidAtStr = order.PaidAt.Format("2006-01-02 15:04:05")
 	}
 
 	return &entity.OrderResponse{
@@ -647,11 +664,17 @@ func (s *orderService) toOrderResponse(order *entity.Order) *entity.OrderRespons
 		PromoCode:      order.PromoCode,
 		PromoID:        order.PromoID,
 		DiscountAmount: order.DiscountAmount,
-		PromoDetails:   promoDetails,
+		PromoDetails:   promoDetailsList,
 		Status:         order.Status,
 		SubtotalAmount: order.SubtotalAmount,
 		TaxAmount:      order.TaxAmount,
 		TotalAmount:    order.TotalAmount,
+		PaymentMethod:  order.PaymentMethod,
+		PaymentStatus:  order.PaymentStatus,
+		PaidAmount:     order.PaidAmount,
+		ChangeAmount:   order.ChangeAmount,
+		PaymentNote:    order.PaymentNote,
+		PaidAt:         paidAtStr,
 		TaxDetails:     taxDetails,
 		OrderItems:     items,
 		CreatedAt:      order.CreatedAt.Format("2006-01-02 15:04:05"),
@@ -753,4 +776,174 @@ func (s *orderService) applyPromo(promoCode string, subtotal float64, companyID,
 	}
 
 	return discount, &promo.ID, nil
+}
+
+func (s *orderService) ProcessPayment(orderID uuid.UUID, req entity.ProcessPaymentRequest, companyID, branchID uuid.UUID) (*entity.PaymentResponse, error) {
+	// Find existing order
+	order, err := s.orderRepo.FindByID(orderID)
+	if err != nil {
+		return nil, errors.New("order not found")
+	}
+
+	if order.CompanyID != companyID || order.BranchID != branchID {
+		return nil, errors.New("unauthorized to process payment for this order")
+	}
+
+	// Check if order is already paid
+	if order.PaymentStatus == entity.PaymentStatusPaid {
+		return nil, errors.New("order has already been paid")
+	}
+
+	// Apply promo if provided
+	if req.PromoCode != "" {
+		// Check if trying to apply the same promo code again
+		existingPromoCodes := []string{}
+		if order.PromoCode != "" {
+			existingPromoCodes = strings.Split(order.PromoCode, ",")
+		}
+		
+		// Check if promo already exists
+		for _, code := range existingPromoCodes {
+			if strings.TrimSpace(code) == req.PromoCode {
+				return nil, errors.New("promo code has already been applied to this order")
+			}
+		}
+		
+		// Apply additional promo
+		additionalDiscount, promoID, err := s.applyPromo(req.PromoCode, order.SubtotalAmount, companyID, branchID)
+		if err != nil {
+			return nil, fmt.Errorf("promo error: %v", err)
+		}
+		
+		// Add to existing promo codes
+		if order.PromoCode != "" {
+			order.PromoCode = order.PromoCode + "," + req.PromoCode
+		} else {
+			order.PromoCode = req.PromoCode
+		}
+		
+		// Add to existing discount
+		order.DiscountAmount += additionalDiscount
+		
+		// Store the new promo ID (we'll keep the last one for backward compatibility)
+		order.PromoID = promoID
+		
+		// Recalculate taxes based on (subtotal - total discount)
+		amountAfterDiscount := order.SubtotalAmount - order.DiscountAmount
+		taxAmount, _, err := s.calculateTaxes(amountAfterDiscount, companyID, branchID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to calculate taxes: %v", err)
+		}
+		
+		order.TaxAmount = taxAmount
+		order.TotalAmount = amountAfterDiscount + taxAmount
+	}
+
+	// Validate payment method
+	validMethods := []entity.PaymentMethod{
+		entity.PaymentMethodQRIS,
+		entity.PaymentMethodCash,
+		entity.PaymentMethodDebit,
+		entity.PaymentMethodCredit,
+		entity.PaymentMethodGoPay,
+		entity.PaymentMethodOVO,
+		entity.PaymentMethodComplimentary,
+	}
+	
+	isValidMethod := false
+	for _, method := range validMethods {
+		if req.PaymentMethod == method {
+			isValidMethod = true
+			break
+		}
+	}
+	
+	if !isValidMethod {
+		return nil, errors.New("invalid payment method")
+	}
+
+	// Calculate change (only for TUNAI)
+	var changeAmount float64
+	
+	// For COMPLIMENTARY, make everything free
+	if req.PaymentMethod == entity.PaymentMethodComplimentary {
+		// Set discount to cover full subtotal (making it free)
+		order.DiscountAmount = order.SubtotalAmount
+		order.TaxAmount = 0
+		order.TotalAmount = 0
+		req.PaidAmount = 0
+		changeAmount = 0
+	} else if req.PaymentMethod == entity.PaymentMethodCash {
+		if req.PaidAmount < order.TotalAmount {
+			return nil, errors.New("paid amount is less than total amount")
+		}
+		changeAmount = req.PaidAmount - order.TotalAmount
+	} else {
+		// For non-cash payments, paid amount must match total amount
+		if req.PaidAmount != order.TotalAmount {
+			return nil, errors.New("paid amount must match total amount for non-cash payments")
+		}
+	}
+
+	// Update order with payment info
+	now := time.Now()
+	order.PaymentMethod = req.PaymentMethod
+	order.PaymentStatus = entity.PaymentStatusPaid
+	order.PaidAmount = req.PaidAmount
+	order.ChangeAmount = changeAmount
+	order.PaymentNote = req.PaymentNote
+	order.PaidAt = &now
+	order.Status = entity.OrderStatusCompleted // Auto complete when paid
+
+	if err := s.orderRepo.Update(order); err != nil {
+		return nil, err
+	}
+
+	// Prepare response
+	_, taxDetails, _ := s.calculateTaxes(order.SubtotalAmount-order.DiscountAmount, companyID, branchID)
+	
+	// Get all promo details
+	var promoDetailsList []entity.PromoDetailDTO
+	if order.PromoCode != "" {
+		promoCodes := strings.Split(order.PromoCode, ",")
+		for _, code := range promoCodes {
+			code = strings.TrimSpace(code)
+			if code != "" {
+				promo, err := s.promoRepo.FindByCode(code, companyID, &branchID)
+				if err == nil {
+					promoDetailsList = append(promoDetailsList, entity.PromoDetailDTO{
+						PromoID:        promo.ID,
+						PromoName:      promo.Name,
+						PromoCode:      promo.Code,
+						PromoType:      promo.Type,
+						PromoValue:     promo.Value,
+						DiscountAmount: 0, // Total discount shown in main field
+						MaxDiscount:    promo.MaxDiscount,
+						MinTransaction: promo.MinTransaction,
+					})
+				}
+			}
+		}
+	}
+
+	paidAtStr := ""
+	if order.PaidAt != nil {
+		paidAtStr = order.PaidAt.Format("2006-01-02 15:04:05")
+	}
+
+	return &entity.PaymentResponse{
+		OrderID:        order.ID,
+		PaymentMethod:  order.PaymentMethod,
+		PaymentStatus:  order.PaymentStatus,
+		SubtotalAmount: order.SubtotalAmount,
+		DiscountAmount: order.DiscountAmount,
+		TaxAmount:      order.TaxAmount,
+		TotalAmount:    order.TotalAmount,
+		PaidAmount:     order.PaidAmount,
+		ChangeAmount:   order.ChangeAmount,
+		PaymentNote:    order.PaymentNote,
+		PaidAt:         paidAtStr,
+		PromoDetails:   promoDetailsList,
+		TaxDetails:     taxDetails,
+	}, nil
 }

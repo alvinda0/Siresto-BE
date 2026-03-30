@@ -126,6 +126,8 @@ func SetupRoutes(r *gin.Engine) {
 
 		// Order routes
 		external.POST("/orders", orderHandler.CreateOrder)
+		external.POST("/orders/quick", orderHandler.QuickCreateOrder)
+		external.POST("/orders/quick/:id", orderHandler.AddOrderItem)
 		external.PUT("/orders/:id", orderHandler.UpdateOrder)
 		external.DELETE("/orders/:id", orderHandler.DeleteOrder)
 		external.GET("/orders/:id", orderHandler.GetOrderByID)

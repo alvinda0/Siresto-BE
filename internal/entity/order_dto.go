@@ -13,6 +13,18 @@ type CreateOrderRequest struct {
 	OrderItems    []OrderItemInput `json:"order_items" binding:"required,min=1"`
 }
 
+type QuickOrderRequest struct {
+	TableNumber string           `json:"table_number" binding:"required"`
+	OrderMethod OrderMethod      `json:"order_method" binding:"required"`
+	OrderItems  []OrderItemInput `json:"order_items" binding:"required,min=1"`
+}
+
+type AddOrderItemRequest struct {
+	ProductID uuid.UUID `json:"product_id" binding:"required"`
+	Quantity  int       `json:"quantity" binding:"required,min=1"`
+	Note      string    `json:"note"`
+}
+
 type CreatePublicOrderRequest struct {
 	CompanyID     uuid.UUID        `json:"company_id" binding:"required"`
 	BranchID      uuid.UUID        `json:"branch_id" binding:"required"`

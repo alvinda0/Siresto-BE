@@ -12,6 +12,7 @@ import (
 type OrderRepository interface {
 	Create(order *entity.Order) error
 	CreateOrderItems(items []entity.OrderItem) error
+	UpdateOrderItem(item *entity.OrderItem) error
 	Update(order *entity.Order) error
 	Delete(id uuid.UUID) error
 	FindByID(id uuid.UUID) (*entity.Order, error)
@@ -38,8 +39,28 @@ func (r *orderRepository) CreateOrderItems(items []entity.OrderItem) error {
 	return r.db.Create(&items).Error
 }
 
+func (r *orderRepository) UpdateOrderItem(item *entity.OrderItem) error {
+	return r.db.Model(item).Updates(map[string]interface{}{
+		"quantity": item.Quantity,
+		"note":     item.Note,
+	}).Error
+}
+
 func (r *orderRepository) Update(order *entity.Order) error {
-	return r.db.Save(order).Error
+	return r.db.Model(order).Updates(map[string]interface{}{
+		"customer_name":   order.CustomerName,
+		"customer_phone":  order.CustomerPhone,
+		"table_number":    order.TableNumber,
+		"notes":           order.Notes,
+		"order_method":    order.OrderMethod,
+		"promo_id":        order.PromoID,
+		"promo_code":      order.PromoCode,
+		"discount_amount": order.DiscountAmount,
+		"status":          order.Status,
+		"subtotal_amount": order.SubtotalAmount,
+		"tax_amount":      order.TaxAmount,
+		"total_amount":    order.TotalAmount,
+	}).Error
 }
 
 func (r *orderRepository) Delete(id uuid.UUID) error {

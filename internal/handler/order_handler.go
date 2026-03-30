@@ -60,6 +60,85 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	pkg.SuccessResponse(c, http.StatusCreated, "Order created successfully", order)
 }
 
+// QuickCreateOrder godoc
+// @Summary Quick create order (minimal fields)
+// @Tags Orders
+// @Accept json
+// @Produce json
+// @Param order body entity.QuickOrderRequest true "Quick order data"
+// @Success 201 {object} pkg.Response{data=entity.OrderResponse}
+// @Router /api/v1/orders/quick [post]
+func (h *OrderHandler) QuickCreateOrder(c *gin.Context) {
+	var req entity.QuickOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Invalid request body", err.Error())
+		return
+	}
+
+	// Get company_id and branch_id from context (set by auth middleware)
+	companyID, exists := c.Get("company_id")
+	if !exists {
+		pkg.ErrorResponse(c, http.StatusUnauthorized, "Company ID not found", "")
+		return
+	}
+
+	branchID, exists := c.Get("branch_id")
+	if !exists {
+		pkg.ErrorResponse(c, http.StatusUnauthorized, "Branch ID not found", "")
+		return
+	}
+
+	order, err := h.orderService.QuickCreateOrder(req, companyID.(uuid.UUID), branchID.(uuid.UUID))
+	if err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Failed to create order", err.Error())
+		return
+	}
+
+	// Broadcast to WebSocket clients
+	hub := websocket.GetHub()
+	hub.BroadcastOrderUpdate("created", order, order.CompanyID, order.BranchID)
+
+	pkg.SuccessResponse(c, http.StatusCreated, "Quick order created successfully", order)
+}
+
+// AddOrderItem godoc
+// @Summary Add item to existing order
+// @Tags Orders
+// @Accept json
+// @Produce json
+// @Param id path string true "Order ID"
+// @Param item body entity.AddOrderItemRequest true "Item to add"
+// @Success 200 {object} pkg.Response{data=entity.OrderResponse}
+// @Router /api/v1/orders/quick/{id} [post]
+func (h *OrderHandler) AddOrderItem(c *gin.Context) {
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Invalid order ID", err.Error())
+		return
+	}
+
+	var req entity.AddOrderItemRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Invalid request body", err.Error())
+		return
+	}
+
+	companyID, _ := c.Get("company_id")
+	branchID, _ := c.Get("branch_id")
+
+	order, err := h.orderService.AddOrderItem(orderID, req, companyID.(uuid.UUID), branchID.(uuid.UUID))
+	if err != nil {
+		pkg.ErrorResponse(c, http.StatusBadRequest, "Failed to add item to order", err.Error())
+		return
+	}
+
+	// Broadcast to WebSocket clients
+	hub := websocket.GetHub()
+	hub.BroadcastOrderUpdate("updated", order, order.CompanyID, order.BranchID)
+
+	pkg.SuccessResponse(c, http.StatusOK, "Item added to order successfully", order)
+}
+
 // CreatePublicOrder godoc
 // @Summary Create a new order without authentication
 // @Tags Public Orders

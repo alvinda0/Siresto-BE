@@ -12,6 +12,7 @@ type PromoRepository interface {
 	Update(promo *entity.Promo) error
 	Delete(id, companyID uuid.UUID, branchID *uuid.UUID) error
 	FindByID(id, companyID uuid.UUID, branchID *uuid.UUID) (*entity.Promo, error)
+	FindByIDSimple(id uuid.UUID) (*entity.Promo, error)
 	FindByCode(code string, companyID uuid.UUID, branchID *uuid.UUID) (*entity.Promo, error)
 	FindByCompany(companyID uuid.UUID, page, limit int) ([]entity.Promo, int64, error)
 	FindByBranch(companyID, branchID uuid.UUID, page, limit int) ([]entity.Promo, int64, error)
@@ -75,6 +76,15 @@ func (r *promoRepository) FindByID(id, companyID uuid.UUID, branchID *uuid.UUID)
 	r.db.Preload("Product").Where("promo_id = ?", promo.ID).Find(&promo.PromoProducts)
 	r.db.Preload("Product").Where("promo_id = ?", promo.ID).Find(&promo.PromoBundles)
 	
+	return &promo, nil
+}
+
+func (r *promoRepository) FindByIDSimple(id uuid.UUID) (*entity.Promo, error) {
+	var promo entity.Promo
+	err := r.db.First(&promo, "id = ?", id).Error
+	if err != nil {
+		return nil, err
+	}
 	return &promo, nil
 }
 

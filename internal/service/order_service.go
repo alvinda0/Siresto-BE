@@ -13,6 +13,8 @@ import (
 
 type OrderService interface {
 	CreateOrder(req entity.CreateOrderRequest, companyID, branchID uuid.UUID) (*entity.OrderResponse, error)
+	QuickCreateOrder(req entity.QuickOrderRequest, companyID, branchID uuid.UUID) (*entity.OrderResponse, error)
+	AddOrderItem(orderID uuid.UUID, req entity.AddOrderItemRequest, companyID, branchID uuid.UUID) (*entity.OrderResponse, error)
 	CreatePublicOrder(req entity.CreatePublicOrderRequest) (*entity.OrderResponse, error)
 	UpdateOrder(id uuid.UUID, req entity.UpdateOrderRequest, companyID, branchID uuid.UUID) (*entity.OrderResponse, error)
 	DeleteOrder(id uuid.UUID, companyID, branchID uuid.UUID) error
@@ -132,6 +134,195 @@ func (s *orderService) CreateOrder(req entity.CreateOrderRequest, companyID, bra
 	}
 
 	// Fetch complete order
+	return s.GetOrderByID(order.ID, &companyID, &branchID)
+}
+
+func (s *orderService) QuickCreateOrder(req entity.QuickOrderRequest, companyID, branchID uuid.UUID) (*entity.OrderResponse, error) {
+	// Validate branch
+	branch, err := s.branchRepo.FindByID(branchID)
+	if err != nil {
+		return nil, errors.New("branch not found")
+	}
+
+	if branch.CompanyID != companyID {
+		return nil, errors.New("branch does not belong to your company")
+	}
+
+	// Calculate subtotal and validate products
+	var subtotalAmount float64
+	var orderItems []entity.OrderItem
+
+	for _, item := range req.OrderItems {
+		product, err := s.productRepo.FindByID(item.ProductID, companyID, branchID)
+		if err != nil {
+			return nil, fmt.Errorf("product %s not found", item.ProductID)
+		}
+
+		if product.BranchID != branchID {
+			return nil, fmt.Errorf("product %s does not belong to this branch", product.Name)
+		}
+
+		if !product.IsAvailable {
+			return nil, fmt.Errorf("product %s is not available", product.Name)
+		}
+
+		subtotal := product.Price * float64(item.Quantity)
+		subtotalAmount += subtotal
+
+		orderItems = append(orderItems, entity.OrderItem{
+			ProductID: item.ProductID,
+			Quantity:  item.Quantity,
+			Price:     product.Price,
+			Note:      item.Note,
+		})
+	}
+
+	// Calculate taxes (no promo for quick order)
+	taxAmount, _, err := s.calculateTaxes(subtotalAmount, companyID, branchID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate taxes: %v", err)
+	}
+
+	totalAmount := subtotalAmount + taxAmount
+
+	// Create order
+	order := &entity.Order{
+		CompanyID:      companyID,
+		BranchID:       branchID,
+		TableNumber:    req.TableNumber,
+		OrderMethod:    req.OrderMethod,
+		Status:         entity.OrderStatusPending,
+		SubtotalAmount: subtotalAmount,
+		TaxAmount:      taxAmount,
+		TotalAmount:    totalAmount,
+	}
+
+	if err := s.orderRepo.Create(order); err != nil {
+		return nil, err
+	}
+
+	// Create order items
+	for i := range orderItems {
+		orderItems[i].OrderID = order.ID
+	}
+
+	if err := s.orderRepo.CreateOrderItems(orderItems); err != nil {
+		return nil, err
+	}
+
+	// Fetch complete order
+	return s.GetOrderByID(order.ID, &companyID, &branchID)
+}
+
+func (s *orderService) AddOrderItem(orderID uuid.UUID, req entity.AddOrderItemRequest, companyID, branchID uuid.UUID) (*entity.OrderResponse, error) {
+	// Find existing order
+	order, err := s.orderRepo.FindByID(orderID)
+	if err != nil {
+		return nil, errors.New("order not found")
+	}
+
+	if order.CompanyID != companyID || order.BranchID != branchID {
+		return nil, errors.New("unauthorized to modify this order")
+	}
+
+	// Validate product
+	product, err := s.productRepo.FindByID(req.ProductID, companyID, branchID)
+	if err != nil {
+		return nil, fmt.Errorf("product not found")
+	}
+
+	if product.BranchID != branchID {
+		return nil, fmt.Errorf("product does not belong to this branch")
+	}
+
+	if !product.IsAvailable {
+		return nil, fmt.Errorf("product %s is not available", product.Name)
+	}
+
+	// Check if item with same product_id already exists
+	var existingItem *entity.OrderItem
+	for i := range order.OrderItems {
+		if order.OrderItems[i].ProductID == req.ProductID {
+			existingItem = &order.OrderItems[i]
+			break
+		}
+	}
+
+	if existingItem != nil {
+		// Update existing item quantity
+		existingItem.Quantity += req.Quantity
+		if req.Note != "" {
+			existingItem.Note = req.Note
+		}
+		if err := s.orderRepo.UpdateOrderItem(existingItem); err != nil {
+			return nil, err
+		}
+	} else {
+		// Create new order item
+		newItem := entity.OrderItem{
+			OrderID:   orderID,
+			ProductID: req.ProductID,
+			Quantity:  req.Quantity,
+			Price:     product.Price,
+			Note:      req.Note,
+		}
+		if err := s.orderRepo.CreateOrderItems([]entity.OrderItem{newItem}); err != nil {
+			return nil, err
+		}
+	}
+
+	// Recalculate subtotal from ALL items (not just increment)
+	// Fetch fresh order with all items
+	order, err = s.orderRepo.FindByID(orderID)
+	if err != nil {
+		return nil, errors.New("failed to fetch updated order")
+	}
+
+	var newSubtotal float64
+	for _, item := range order.OrderItems {
+		newSubtotal += item.Price * float64(item.Quantity)
+	}
+
+	// Recalculate discount if promo exists (without incrementing usage count)
+	var discountAmount float64
+	if order.PromoCode != "" && order.PromoID != nil {
+		promo, err := s.promoRepo.FindByIDSimple(*order.PromoID)
+		if err == nil && promo.IsActive {
+			// Recalculate discount based on new subtotal
+			if promo.Type == "percentage" {
+				discountAmount = newSubtotal * (promo.Value / 100)
+				if promo.MaxDiscount != nil && discountAmount > *promo.MaxDiscount {
+					discountAmount = *promo.MaxDiscount
+				}
+			} else if promo.Type == "fixed" {
+				discountAmount = promo.Value
+				if discountAmount > newSubtotal {
+					discountAmount = newSubtotal
+				}
+			}
+		} else {
+			// Promo no longer valid, remove it
+			order.PromoCode = ""
+			order.PromoID = nil
+		}
+	}
+
+	// Recalculate taxes
+	amountAfterDiscount := newSubtotal - discountAmount
+	taxAmount, _, err := s.calculateTaxes(amountAfterDiscount, companyID, branchID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate taxes: %v", err)
+	}
+
+	order.SubtotalAmount = newSubtotal
+	order.DiscountAmount = discountAmount
+	order.TaxAmount = taxAmount
+	order.TotalAmount = amountAfterDiscount + taxAmount
+
+	if err := s.orderRepo.Update(order); err != nil {
+		return nil, err
+	}
+
 	return s.GetOrderByID(order.ID, &companyID, &branchID)
 }
 

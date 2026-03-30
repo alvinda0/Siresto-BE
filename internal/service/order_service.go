@@ -23,6 +23,7 @@ type OrderService interface {
 	DeleteOrder(id uuid.UUID, companyID, branchID uuid.UUID) error
 	GetOrderByID(id uuid.UUID, companyID, branchID *uuid.UUID) (*entity.OrderResponse, error)
 	GetAllOrders(companyID, branchID *uuid.UUID, status, method, customer, orderID string, pagination pkg.PaginationParams) ([]entity.OrderResponse, *pkg.PaginationMeta, error)
+	GetTransactionReport(companyID, branchID uuid.UUID, filter entity.TransactionReportFilter) ([]entity.TransactionReportDTO, *pkg.PaginationMeta, error)
 }
 
 type orderService struct {
@@ -946,4 +947,28 @@ func (s *orderService) ProcessPayment(orderID uuid.UUID, req entity.ProcessPayme
 		PromoDetails:   promoDetailsList,
 		TaxDetails:     taxDetails,
 	}, nil
+}
+
+func (s *orderService) GetTransactionReport(companyID, branchID uuid.UUID, filter entity.TransactionReportFilter) ([]entity.TransactionReportDTO, *pkg.PaginationMeta, error) {
+	// Get orders from repository
+	orders, total, err := s.orderRepo.GetTransactionReport(companyID, branchID, filter)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Convert to DTOs
+	reportDTOs := make([]entity.TransactionReportDTO, len(orders))
+	for i, order := range orders {
+		reportDTOs[i] = order.ToReportDTO()
+	}
+
+	// Create pagination meta
+	meta := &pkg.PaginationMeta{
+		Page:       filter.Page,
+		Limit:      filter.Limit,
+		TotalItems: total,
+		TotalPages: int((total + int64(filter.Limit) - 1) / int64(filter.Limit)),
+	}
+
+	return reportDTOs, meta, nil
 }

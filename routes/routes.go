@@ -157,6 +157,9 @@ func SetupRoutes(r *gin.Engine) {
 
 		// Dashboard/Home routes
 		external.GET("/home", dashboardHandler.GetHomeStats)
+
+		// Transaction Report routes
+		external.GET("/reports/transactions", orderHandler.GetTransactionReport)
 	}
 
 	// ===== WEBSOCKET (separate group for query param auth) =====

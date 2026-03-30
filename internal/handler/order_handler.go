@@ -374,3 +374,47 @@ func (h *OrderHandler) ProcessPayment(c *gin.Context) {
 
 	pkg.SuccessResponse(c, http.StatusOK, "Payment processed successfully", payment)
 }
+
+// GetTransactionReport handles GET /api/v1/external/reports/transactions
+func (h *OrderHandler) GetTransactionReport(c *gin.Context) {
+	// Get company_id and branch_id from context (set by auth middleware)
+	companyID, exists := c.Get("company_id")
+	if !exists {
+		pkg.ErrorResponse(c, 400, "Bad Request", "Company ID not found in context")
+		return
+	}
+
+	branchID, exists := c.Get("branch_id")
+	if !exists {
+		pkg.ErrorResponse(c, 400, "Bad Request", "Branch ID not found in context")
+		return
+	}
+
+	// Parse filter from query params
+	var filter entity.TransactionReportFilter
+	if err := c.ShouldBindQuery(&filter); err != nil {
+		pkg.ErrorResponse(c, 400, "Bad Request", err.Error())
+		return
+	}
+
+	// Set default pagination if not provided
+	if filter.Page < 1 {
+		filter.Page = 1
+	}
+	if filter.Limit < 1 {
+		filter.Limit = 10
+	}
+
+	// Get transaction report
+	reports, meta, err := h.orderService.GetTransactionReport(
+		companyID.(uuid.UUID),
+		branchID.(uuid.UUID),
+		filter,
+	)
+	if err != nil {
+		pkg.ErrorResponse(c, 500, "Failed to get transaction report", err.Error())
+		return
+	}
+
+	pkg.SuccessResponseWithMeta(c, 200, "Transaction report retrieved successfully", reports, meta)
+}

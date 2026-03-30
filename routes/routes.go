@@ -61,6 +61,11 @@ func SetupRoutes(r *gin.Engine) {
 	apiLogService := service.NewAPILogService(apiLogRepo)
 	apiLogHandler := handler.NewAPILogHandler(apiLogService)
 
+	// Dashboard dependencies
+	dashboardRepo := repository.NewDashboardRepository(config.DB)
+	dashboardService := service.NewDashboardService(dashboardRepo)
+	dashboardHandler := handler.NewDashboardHandler(dashboardService)
+
 	// Apply logging middleware globally
 	r.Use(middleware.LoggingMiddleware(apiLogService))
 
@@ -149,6 +154,9 @@ func SetupRoutes(r *gin.Engine) {
 		external.GET("/promos/:id", promoHandler.GetPromoByID)
 		external.GET("/promos", promoHandler.GetAllPromos)
 		external.GET("/promos/validate/:code", promoHandler.ValidatePromoCode)
+
+		// Dashboard/Home routes
+		external.GET("/home", dashboardHandler.GetHomeStats)
 	}
 
 	// ===== WEBSOCKET (separate group for query param auth) =====
